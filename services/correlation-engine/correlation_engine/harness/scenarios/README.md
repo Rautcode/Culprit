@@ -12,6 +12,7 @@ covered by `tests/test_scenarios.py`'s all-scenarios regression loop.
 |---|---|---|---|
 | `pool_exhaustion` | Database | easy | [`pool_exhaustion.py`](pool_exhaustion.py) |
 | `crash_loop_backoff` | Kubernetes | medium | [`crash_loop_backoff.py`](crash_loop_backoff.py) |
+| `oom_killed` | Kubernetes | hard | [`oom_killed.py`](oom_killed.py) |
 
 ## Backlog — first 10, in build priority order
 
@@ -27,7 +28,7 @@ metrics/broken scraping) are deferred to a Phase 2 catalog, not dropped.
 |---|---|---|---|
 | 1 | `pool_exhaustion` | Database | done, see above |
 | 2 | `crash_loop_backoff` | Kubernetes | done, see above |
-| 3 | `oom_killed` | Kubernetes | Resource limit reduced below actual usage, pod OOMKilled |
+| 3 | `oom_killed` | Kubernetes | done, see above |
 | 4 | `image_pull_backoff` | Kubernetes | Deploy references a nonexistent/unpushed image tag |
 | 5 | `bad_configmap` | Kubernetes | ConfigMap change breaks service startup config |
 | 6 | `bad_secret` | Kubernetes | Secret rotation/change breaks an auth-dependent service |

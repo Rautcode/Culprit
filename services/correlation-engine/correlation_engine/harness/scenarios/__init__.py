@@ -1,7 +1,7 @@
 from ..schema import Scenario
-from . import crash_loop_backoff, pool_exhaustion
+from . import crash_loop_backoff, oom_killed, pool_exhaustion
 
-_BUILDERS = (pool_exhaustion.build, crash_loop_backoff.build)
+_BUILDERS = (pool_exhaustion.build, crash_loop_backoff.build, oom_killed.build)
 
 ALL_SCENARIOS: tuple[Scenario, ...] = tuple(builder() for builder in _BUILDERS)
 
