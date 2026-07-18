@@ -1,6 +1,6 @@
 # Culprit — Specification Freeze
 
-**Version: v1.0** · **Frozen: 2026-07-18** · **Status: pre-code, planning complete**
+**Version: v1.0** · **Frozen: 2026-07-18** · **Status: build step 1 in progress (Incident Simulation Harness)**
 
 This file is the single source of truth for "what v1.0 means." It doesn't
 restate the design docs — it pins the specific decisions in them that are
@@ -67,6 +67,26 @@ breakdown (`confidence_breakdown` jsonb), not just the composite.
 - Schema: [docs/05-database.md](docs/05-database.md) `rca_candidates`
 - **Frozen for v1.0**: the formula shape and the ±0.15 LLM bound. Per-org *weight values* are meant to be tuned by real data (that's what the config table is for) — tuning weights is normal operation, not a spec change. Changing the *formula shape* (e.g. adding a fourth term, removing the LLM bound) is a version bump.
 
+## v1.0 Event Contract
+
+Inter-service events (`IncidentCreated`, `DeploymentDetected`,
+`EvidenceCollected`, `GraphUpdated`, `CorrelationCompleted`,
+`RecommendationGenerated`, `HumanApproved`, `IncidentClosed`,
+`LearningCompleted`), versioned in the envelope (`version: "v1alpha1"`, not
+in type names). `CorrelationCompleted` is the seam between the
+deterministic pipeline and the LLM layer — its payload never carries LLM
+output.
+
+- Source of truth: [libs/eventschema/v1alpha1.md](libs/eventschema/v1alpha1.md)
+- Implementations: `libs/py/eventschema`, `libs/go/eventschema`
+- ADR: [docs/adr/0001-event-contract-v1alpha1.md](docs/adr/0001-event-contract-v1alpha1.md)
+- **Frozen for v1.0**: this event set and the envelope shape. Adding a field
+  to an existing event is fine within v1alpha1; removing/renaming a field,
+  or adding a new event type, is a v1alpha2 decision — new ADR required.
+- **Not used by the Incident Simulation Harness**, which calls the pipeline
+  in-process — this contract governs service-to-service communication once
+  there are multiple deployed processes (Phase 2+).
+
 ## v1.0 Evaluation Metrics
 
 - **precision@1 / precision@3** against a golden set of real, anonymized past incidents.
@@ -121,9 +141,17 @@ edits to this file.
 | Version | Date | Change | ADR |
 |---|---|---|---|
 | v1.0 | 2026-07-18 | Initial freeze — architecture, rule engine, knowledge graph, confidence formula, evaluation metrics, success criteria, build sequence, per prior planning session. | — |
+| v1.0 | 2026-07-18 | Added Event Contract (v1alpha1): 9 event types + envelope, implemented in `libs/py/eventschema` and `libs/go/eventschema`. Additive — fills a gap in v1.0, doesn't override a prior decision. | [0001](docs/adr/0001-event-contract-v1alpha1.md) |
+| v1.0 | 2026-07-18 | Incident Simulation Harness v1 built: Scenario/EvidenceBundle schema (10 required fields), in-memory Knowledge Graph, all 5 Rule Engine rules implemented, confidence scoring wired, `pool_exhaustion` scenario passing end-to-end in `services/correlation-engine/tests/test_scenarios.py`. First proof the deterministic pipeline (steps 1-5 of "v1.0 Build Sequence") works, per the walking-skeleton approach. 9 more scenarios cataloged as backlog in `services/correlation-engine/correlation_engine/harness/scenarios/README.md`. | — |
 
 ---
 
-**Status: planning complete.** The next action against this project is
-`docs/10-roadmap.md` Phase 0 validation, then build step 1 above — not
-another design document.
+**Status: build step 1 (Incident Simulation Harness) underway.** One
+scenario (`pool_exhaustion`) passes end-to-end through the real
+deterministic pipeline — see `services/correlation-engine/tests/`. Next:
+finish the remaining 9 backlog scenarios in
+`services/correlation-engine/correlation_engine/harness/scenarios/README.md`
+before moving to build step 2 (Evidence Collection). Do not start
+`services/ai-reasoning` until steps 2-5 (Evidence Collection, Knowledge
+Graph, Rule Engine, Confidence Scoring) all pass against the full scenario
+set.
