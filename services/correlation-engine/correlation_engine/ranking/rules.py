@@ -45,7 +45,12 @@ def _keywords_for(alert_title: str) -> tuple[str, ...]:
 
 
 def time_proximity(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
-    if deploy.service != alert.service:
+    # Fires for the alerting service itself and for anything its dependency
+    # chain reaches — a deploy on a service the alerter depends on is causally
+    # eligible (bad_configmap scenario: alert fires downstream of the cause).
+    # Deploys with no graph path from the alerting service stay at zero no
+    # matter how close in time (crash_loop_backoff's cross-service decoy).
+    if deploy.service != alert.service and graph.hop_distance(alert.service, deploy.service) is None:
         return 0.0, {}
     delta = (alert.fired_at - deploy.occurred_at).total_seconds()
     if delta < 0 or delta > TIME_WINDOW_SECONDS:
@@ -55,7 +60,12 @@ def time_proximity(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundl
 
 
 def ownership_distance(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
-    hops = graph.hop_distance(deploy.service, alert.service)
+    # Direction matters: causality flows from a dependency to its dependents,
+    # so we ask "does the alerting service's depends_on chain reach the
+    # deployed service?" (alert.service -> deploy.service). The reverse
+    # traversal would score deploys on *dependents* of the alerter, which
+    # rarely cause its incidents.
+    hops = graph.hop_distance(alert.service, deploy.service)
     if hops is None:
         return 0.0, {}
     score = max(0.0, 1 - hops / 3)

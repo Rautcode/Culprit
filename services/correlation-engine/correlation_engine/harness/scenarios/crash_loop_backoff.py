@@ -6,8 +6,9 @@ Kubernetes events + Prometheus alert (all Phase 1 sources).
 Harder than pool_exhaustion in one specific way: the second decoy is a
 deploy on a *different* service that lands closer in time to the alert than
 the same-service decoy — so pure time-proximity ranking would get this
-wrong, and the pipeline has to use the Knowledge Graph (ownership distance)
-to keep cross-service noise below the real cause.
+wrong. The decoy is graph-reachable (payments depends_on ledger, 1 hop), so
+it earns partial time/ownership credit, but without keyword evidence it
+stays well below the real cause.
 """
 from __future__ import annotations
 

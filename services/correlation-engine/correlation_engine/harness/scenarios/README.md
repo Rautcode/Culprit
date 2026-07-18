@@ -14,6 +14,7 @@ covered by `tests/test_scenarios.py`'s all-scenarios regression loop.
 | `crash_loop_backoff` | Kubernetes | medium | [`crash_loop_backoff.py`](crash_loop_backoff.py) |
 | `oom_killed` | Kubernetes | hard | [`oom_killed.py`](oom_killed.py) |
 | `image_pull_backoff` | Kubernetes | medium | [`image_pull_backoff.py`](image_pull_backoff.py) |
+| `bad_configmap` | Kubernetes | hard | [`bad_configmap.py`](bad_configmap.py) — first cross-service culprit (alert fires downstream of the cause) |
 
 ## Backlog — first 10, in build priority order
 
@@ -31,7 +32,7 @@ metrics/broken scraping) are deferred to a Phase 2 catalog, not dropped.
 | 2 | `crash_loop_backoff` | Kubernetes | done, see above |
 | 3 | `oom_killed` | Kubernetes | done, see above |
 | 4 | `image_pull_backoff` | Kubernetes | done, see above |
-| 5 | `bad_configmap` | Kubernetes | ConfigMap change breaks service startup config |
+| 5 | `bad_configmap` | Kubernetes | done, see above |
 | 6 | `bad_secret` | Kubernetes | Secret rotation/change breaks an auth-dependent service |
 | 7 | `bad_rollout` | Deployment | A rollout introduces a regression across all replicas at once (no canary) |
 | 8 | `deadlock` | Database | Schema/query change introduces a lock contention pattern |
