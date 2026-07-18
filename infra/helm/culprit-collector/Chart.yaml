@@ -1,0 +1,6 @@
+apiVersion: v2
+name: culprit-collector
+description: Not yet implemented. See docs/09-infrastructure.md.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

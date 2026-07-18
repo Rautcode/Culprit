@@ -1,0 +1,12 @@
+{
+  "name": "@culprit/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Incident List + Incident Detail. See docs/08-ui-design.md.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  }
+}

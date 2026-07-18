@@ -1,0 +1,10 @@
+[project]
+name = "ai-reasoning"
+version = "0.1.0"
+description = "Agent orchestration, RAG, prompts, evals. See docs/07-ai-architecture.md and SPEC_VERSION.md."
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
