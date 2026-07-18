@@ -26,6 +26,7 @@ _KEYWORD_SIGNALS: dict[str, tuple[str, ...]] = {
     "pool": ("pool", "connection", "connectionpool", "maxpoolsize"),
     "memory": ("memory", "limit", "resources", "oom"),
     "crash": ("command", "entrypoint", "image", "readinessprobe", "livenessprobe"),
+    "pull": ("image", "tag", "registry", "repository"),
     "timeout": ("timeout", "deadline"),
     "config": ("configmap", "config", "env"),
     "secret": ("secret", "credentials"),
