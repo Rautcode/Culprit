@@ -1931,16 +1931,17 @@
           "summary": "rename metrics port 9090 to 9464 and move handler to /telemetry",
           "deployed_by": "oscar",
           "occurred_at": "2026-07-20T19:31:00",
-          "confidence": 0.251,
+          "confidence": 0.314,
           "confidence_breakdown": {
-            "rule_score": 0.501,
-            "rag_score": 0.0,
+            "rule_score": 0.535,
+            "rag_score": 0.155,
             "llm_adjustment": 0.0
           },
           "rule_hits": [
             "time_proximity",
             "ownership_distance",
             "diff_keyword_match",
+            "historical_pattern_match",
             "blast_radius_weight"
           ],
           "evidence": {
@@ -1959,10 +1960,23 @@
               ],
               "deploy_id": "deploy-9464aa"
             },
+            "historical_pattern_match": {
+              "incident_id": "broken_scraping",
+              "similarity": 0.155,
+              "past_root_cause": "{'files_changed': ['prometheus/scrape_configs.yaml'], 'summary': 'consolidate scrape configs: rewrite job relabeling for service targets'} rewritten relabeling rules drop all service targets; every scrape fails and absent-metrics alerts cascade across monitored services.",
+              "past_resolution": "pr_revert:prometheus:5cr4p3"
+            },
             "blast_radius_weight": {
               "dependent_count": 1,
               "service": "search-service"
-            }
+            },
+            "similar_past_incidents": [
+              {
+                "incident_id": "broken_scraping",
+                "similarity": 0.155,
+                "resolution": "pr_revert:prometheus:5cr4p3"
+              }
+            ]
           }
         },
         {
@@ -2001,6 +2015,162 @@
         }
       ],
       "proposed_remediation": "pr_revert:search-service:9464aa"
+    },
+    {
+      "id": "broken_scraping",
+      "title": "checkout-service: metrics absent \u2014 scrape target down",
+      "service": "checkout-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-20T21:16:00",
+      "difficulty": "hard",
+      "description": "A scrape-config consolidation rewrites job relabeling and drops every service target; absent-metrics alerts fire on checkout, payments, and orders within two minutes. All three services are healthy and none depends on Prometheus at runtime \u2014 the culprit is reachable only through monitored_by edges, gated to observability-shaped symptoms. The decoy (a checkout gift-card deploy) explains one alert of three; storm aggregation buries it.",
+      "alerts": [
+        {
+          "id": "alert-checkout-metrics-absent-1",
+          "service": "checkout-service",
+          "title": "checkout-service: metrics absent \u2014 scrape target down",
+          "severity": "high",
+          "fired_at": "2026-07-20T21:16:00"
+        },
+        {
+          "id": "alert-payments-metrics-absent-1",
+          "service": "payments-service",
+          "title": "payments-service: metrics absent \u2014 scrape target down",
+          "severity": "high",
+          "fired_at": "2026-07-20T21:17:00"
+        },
+        {
+          "id": "alert-orders-metrics-absent-1",
+          "service": "orders-service",
+          "title": "orders-service: metrics absent \u2014 scrape target down",
+          "severity": "high",
+          "fired_at": "2026-07-20T21:18:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T21:00:00",
+          "ref": "deploy-61f7c4"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T21:10:00",
+          "ref": "deploy-5cr4p3"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-20T21:10:00",
+          "ref": "5cr4p3"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-20T21:16:00",
+          "ref": "alert-checkout-metrics-absent-1"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-20T21:17:00",
+          "ref": "alert-payments-metrics-absent-1"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-20T21:18:00",
+          "ref": "alert-orders-metrics-absent-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-5cr4p3",
+          "service": "prometheus",
+          "summary": "consolidate scrape configs: rewrite job relabeling for service targets",
+          "deployed_by": "platform-team",
+          "occurred_at": "2026-07-20T21:10:00",
+          "confidence": 0.368,
+          "confidence_breakdown": {
+            "rule_score": 0.582,
+            "rag_score": 0.256,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "historical_pattern_match"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 360.0,
+              "deploy_id": "deploy-5cr4p3"
+            },
+            "ownership_distance": {
+              "hops": 1,
+              "monitoring_path": true,
+              "deploy_service": "prometheus",
+              "alert_service": "checkout-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "scrape",
+                "target"
+              ],
+              "deploy_id": "deploy-5cr4p3"
+            },
+            "historical_pattern_match": {
+              "incident_id": "missing_metrics",
+              "similarity": 0.241,
+              "past_root_cause": "{'files_changed': ['telemetry/server.py', 'deployment.yaml'], 'summary': 'rename metrics port 9090 to 9464 and move handler to /telemetry'} scrape config still targets 9090/metrics; the handler now lives on 9464/telemetry, so every scrape fails.",
+              "past_resolution": "pr_revert:search-service:9464aa"
+            },
+            "alerts_correlated": 3,
+            "similar_past_incidents": [
+              {
+                "incident_id": "missing_metrics",
+                "similarity": 0.256,
+                "resolution": "pr_revert:search-service:9464aa"
+              }
+            ]
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-61f7c4",
+          "service": "checkout-service",
+          "summary": "add gift card support to cart",
+          "deployed_by": "priya",
+          "occurred_at": "2026-07-20T21:00:00",
+          "confidence": 0.067,
+          "confidence_breakdown": {
+            "rule_score": 0.134,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 960.0,
+              "deploy_id": "deploy-61f7c4"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            },
+            "alerts_correlated": 1
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:prometheus:5cr4p3"
     }
   ]
 }

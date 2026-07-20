@@ -85,8 +85,8 @@ CREATE TABLE service_edges (
     org_id        uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     from_service_id uuid NOT NULL REFERENCES services(id) ON DELETE CASCADE,
     to_service_id   uuid NOT NULL REFERENCES services(id) ON DELETE CASCADE,
-    edge_type     text NOT NULL,       -- depends_on|owned_by|deployed_via|shares_namespace
-    source        text NOT NULL,       -- k8s_ownerref|service_mesh|helm_chart|manual
+    edge_type     text NOT NULL,       -- depends_on|owned_by|deployed_via|shares_namespace|monitored_by (ADR 0002)
+    source        text NOT NULL,       -- k8s_ownerref|service_mesh|helm_chart|prometheus_targets|manual
     metadata      jsonb,
     discovered_at timestamptz NOT NULL DEFAULT now(),
     UNIQUE (org_id, from_service_id, to_service_id, edge_type)

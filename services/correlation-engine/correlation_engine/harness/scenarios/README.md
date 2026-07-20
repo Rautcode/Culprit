@@ -25,6 +25,7 @@ covered by `tests/test_scenarios.py`'s all-scenarios regression loop.
 | `dns_failure` | Network | medium | [`dns_failure.py`](dns_failure.py) — shared-infra node (cluster-dns) with the catalog's largest blast radius |
 | `feature_flag_failure` | Deployment | medium | [`feature_flag_failure.py`](feature_flag_failure.py) — flag ramp as a first-class change: no commit, no files, no rollout |
 | `missing_metrics` | Observability | medium | [`missing_metrics.py`](missing_metrics.py) — absent-signal alert; service healthy, only observability broke |
+| `broken_scraping` | Observability | hard | [`broken_scraping.py`](broken_scraping.py) — monitoring-stack culprit via `monitored_by` edges (ADR 0002); no runtime path to the alerters |
 
 ## Backlog — first 10, in build priority order
 
@@ -36,12 +37,14 @@ which are Phase 2+.
 
 ## Phase 2 catalog
 
-Five of the deferred Phase 2 scenarios are implemented (see the table
+Six of the deferred Phase 2 scenarios are implemented (see the table
 above): `terraform_iam_break`, `terraform_drift`, `dns_failure`,
-`feature_flag_failure`, `missing_metrics` — each chosen because it
-exercises an axis the engine had never seen (Terraform evidence, culprits
-with no git artifact, shared-infra blast radius, non-deploy change events,
-absent-signal alerts).
+`feature_flag_failure`, `missing_metrics`, `broken_scraping` — each chosen
+because it exercises an axis the engine had never seen (Terraform
+evidence, culprits with no git artifact, shared-infra blast radius,
+non-deploy change events, absent-signal alerts, monitoring topology via
+the `monitored_by` edge type added in
+[ADR 0002](../../../../../docs/adr/0002-monitored-by-edge.md)).
 
 Still deferred, with reasons — not dropped:
 
@@ -49,7 +52,6 @@ Still deferred, with reasons — not dropped:
 |---|---|
 | `mesh_routing` | Its ranking mechanics (partial failure + same-service config change) duplicate bad_rollout + feature_flag coverage; add when mesh topology becomes a real evidence source. |
 | `network_policy_block` | Coupling shape is identical to bad_configmap/terraform_drift (downstream alert, 1 hop); adds a symptom flavor, not an engine path. |
-| `broken_scraping` | Needs monitoring-topology edges ("monitored_by") the Knowledge Graph doesn't model — a deliberate graph extension, not a scenario-writing task. |
 
 | # | ID | Category | Description |
 |---|---|---|---|

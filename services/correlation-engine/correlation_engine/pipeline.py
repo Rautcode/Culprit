@@ -11,7 +11,7 @@ from .harness.schema import EvidenceBundle, Scenario
 from .knowledge_graph import KnowledgeGraph
 from .memory import IncidentMemory
 from .ranking.confidence import ConfidenceBreakdown, compute_confidence
-from .ranking.rules import RULES, TOTAL_WEIGHT
+from .ranking.rules import RULES, TOTAL_WEIGHT, is_observability_alert
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,9 @@ def rank_candidates(bundle: EvidenceBundle, graph: KnowledgeGraph, memory: Incid
             # the UI/LLM layers cite ("explains 4 of 4 alerts").
             evidence["alerts_correlated"] = sum(
                 1 for alert in bundle.alerts
-                if alert.service == deploy.service or graph.coupling(alert.service, deploy.service) is not None
+                if alert.service == deploy.service
+                or graph.coupling(alert.service, deploy.service) is not None
+                or (is_observability_alert(alert) and graph.monitors(deploy.service, alert.service))
             )
 
         # RAG term of the frozen confidence formula: similarity of the

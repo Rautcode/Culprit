@@ -68,13 +68,33 @@ def _title_tokens(alert: AlertEvent) -> tuple[str, ...]:
     return tuple(t for t in tokens if len(t) >= 4 and t not in _TOKEN_STOPWORDS)
 
 
+# Alert titles carrying these markers describe monitoring symptoms rather
+# than service symptoms — the only alert class for which a change on the
+# MONITORING system (monitored_by edges) is a plausible cause (ADR 0002).
+_OBSERVABILITY_MARKERS = ("metrics", "scrape", "monitoring", "telemetry", "absent")
+
+
+def is_observability_alert(alert: AlertEvent) -> bool:
+    title = alert.title.lower()
+    return any(marker in title for marker in _OBSERVABILITY_MARKERS)
+
+
+def _monitoring_path(alert: AlertEvent, deploy: DeployEvent, graph: KnowledgeGraph) -> bool:
+    return is_observability_alert(alert) and graph.monitors(deploy.service, alert.service)
+
+
 def time_proximity(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph, memory: "IncidentMemory | None" = None) -> tuple[float, dict]:
     # Fires for the alerting service itself and for anything causally
-    # coupled to it — a dependency of the alerter (bad_configmap), or a
-    # sibling sharing a resource with it (deadlock). Deploys with no causal
-    # coupling stay at zero no matter how close in time
-    # (crash_loop_backoff's cross-service decoy).
-    if deploy.service != alert.service and graph.coupling(alert.service, deploy.service) is None:
+    # coupled to it — a dependency of the alerter (bad_configmap), a
+    # sibling sharing a resource with it (deadlock), or its monitoring
+    # system when the symptom is observability-shaped (broken_scraping).
+    # Deploys with no causal coupling stay at zero no matter how close in
+    # time (crash_loop_backoff's cross-service decoy).
+    if (
+        deploy.service != alert.service
+        and graph.coupling(alert.service, deploy.service) is None
+        and not _monitoring_path(alert, deploy, graph)
+    ):
         return 0.0, {}
     delta = (alert.fired_at - deploy.occurred_at).total_seconds()
     if delta < 0 or delta > TIME_WINDOW_SECONDS:
@@ -92,6 +112,17 @@ def ownership_distance(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceB
     # alerter, which rarely cause its incidents; coupling() excludes it.
     coupled = graph.coupling(alert.service, deploy.service)
     if coupled is None:
+        # Fallback channel: the deploy is on the alerter's MONITORING
+        # system and the symptom is observability-shaped — scored as one
+        # hop, same as a direct dependency (ADR 0002). Runtime coupling
+        # takes precedence when both exist.
+        if _monitoring_path(alert, deploy, graph):
+            return max(0.0, 1 - 1 / 3), {
+                "hops": 1,
+                "monitoring_path": True,
+                "deploy_service": deploy.service,
+                "alert_service": alert.service,
+            }
         return 0.0, {}
     hops, shared = coupled
     score = max(0.0, 1 - hops / 3)

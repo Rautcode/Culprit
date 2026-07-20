@@ -1,6 +1,7 @@
 from ..schema import Scenario
 from . import (
     alert_storm,
+    broken_scraping,
     dns_failure,
     feature_flag_failure,
     missing_metrics,
@@ -33,6 +34,7 @@ _BUILDERS = (
     dns_failure.build,
     feature_flag_failure.build,
     missing_metrics.build,
+    broken_scraping.build,
 )
 
 ALL_SCENARIOS: tuple[Scenario, ...] = tuple(builder() for builder in _BUILDERS)

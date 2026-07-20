@@ -43,10 +43,13 @@ Weights are per-org, stored in `correlation_rule_configs`, default weight
 ## v1.0 Knowledge Graph
 
 Modeled as edges in Postgres (`service_edges`: `depends_on | owned_by |
-deployed_via | shares_namespace`), populated from Kubernetes
+deployed_via | shares_namespace | monitored_by`), populated from Kubernetes
 `ownerReferences`, service-mesh topology (where present), Helm chart
-parent/subchild relationships, and an explicit `owner_team` field. Queried
-via recursive CTE, not a dedicated graph database.
+parent/subchild relationships, Prometheus target discovery (`monitored_by`,
+added by amendment — [ADR 0002](docs/adr/0002-monitored-by-edge.md)), and
+an explicit `owner_team` field. Queried via recursive CTE, not a dedicated
+graph database. `monitored_by` is a separate causal channel gated to
+observability-class alerts — never runtime coupling or blast radius.
 
 - Definition: [docs/07-ai-architecture.md](docs/07-ai-architecture.md) § Knowledge Graph
 - Schema + traversal query: [docs/05-database.md](docs/05-database.md)
@@ -142,6 +145,7 @@ edits to this file.
 |---|---|---|---|
 | v1.0 | 2026-07-18 | Initial freeze — architecture, rule engine, knowledge graph, confidence formula, evaluation metrics, success criteria, build sequence, per prior planning session. | — |
 | v1.0 | 2026-07-18 | Added Event Contract (v1alpha1): 9 event types + envelope, implemented in `libs/py/eventschema` and `libs/go/eventschema`. Additive — fills a gap in v1.0, doesn't override a prior decision. | [0001](docs/adr/0001-event-contract-v1alpha1.md) |
+| v1.0 | 2026-07-20 | Knowledge Graph edge types: added `monitored_by` (monitoring topology as a separate causal channel, gated to observability-class alerts; never runtime coupling or blast radius). User-directed amendment enabling the `broken_scraping` scenario. | [0002](docs/adr/0002-monitored-by-edge.md) |
 | v1.0 | 2026-07-18 | Incident Simulation Harness v1 built: Scenario/EvidenceBundle schema (10 required fields), in-memory Knowledge Graph, all 5 Rule Engine rules implemented, confidence scoring wired, `pool_exhaustion` scenario passing end-to-end in `services/correlation-engine/tests/test_scenarios.py`. First proof the deterministic pipeline (steps 1-5 of "v1.0 Build Sequence") works, per the walking-skeleton approach. 9 more scenarios cataloged as backlog in `services/correlation-engine/correlation_engine/harness/scenarios/README.md`. | — |
 
 ---

@@ -18,6 +18,7 @@ class KnowledgeGraph:
     def __init__(self) -> None:
         self._downstream: dict[str, list[str]] = defaultdict(list)
         self._upstream: dict[str, list[str]] = defaultdict(list)  # reverse: who depends on me
+        self._monitored: dict[str, set[str]] = defaultdict(set)   # monitor -> services it monitors
 
     @classmethod
     def from_edges(cls, edges: tuple[ServiceEdge, ...]) -> "KnowledgeGraph":
@@ -26,7 +27,20 @@ class KnowledgeGraph:
             if edge.edge_type == "depends_on":
                 graph._downstream[edge.from_service].append(edge.to_service)
                 graph._upstream[edge.to_service].append(edge.from_service)
+            elif edge.edge_type == "monitored_by":
+                # (from=checkout, to=prometheus) reads "checkout is monitored
+                # by prometheus". Deliberately NOT a depends_on: monitoring
+                # breaking doesn't break the service, so this topology must
+                # never feed runtime coupling or blast radius — it is a
+                # separate causal channel, consulted only for
+                # observability-class alerts (ADR 0002).
+                graph._monitored[edge.to_service].add(edge.from_service)
         return graph
+
+    def monitors(self, monitor_service: str, service: str) -> bool:
+        """True if monitor_service monitors service — the causal path for
+        observability-symptom alerts (metrics absent, scrape failures)."""
+        return service in self._monitored[monitor_service]
 
     def hop_distance(self, from_service: str, to_service: str, max_hops: int = MAX_HOPS) -> int | None:
         """Shortest number of `depends_on` hops from from_service to
