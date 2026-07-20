@@ -1,0 +1,1403 @@
+{
+  "incidents": [
+    {
+      "id": "pool_exhaustion",
+      "title": "DB connection pool exhausted",
+      "service": "checkout-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-18T14:32:30",
+      "difficulty": "easy",
+      "description": "A Helm values change shrinks checkout-service's DB connection pool from 50 to 10, causing a pool-exhausted alert ~90s later. A decoy deploy (unrelated logging-library bump) happened 31 minutes earlier and must be ranked below the real cause.",
+      "alerts": [
+        {
+          "id": "alert-pool-exhausted-1",
+          "service": "checkout-service",
+          "title": "DB connection pool exhausted",
+          "severity": "high",
+          "fired_at": "2026-07-18T14:32:30"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T14:00:00",
+          "ref": "deploy-d9e102"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T14:31:00",
+          "ref": "deploy-a3f21c"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-18T14:31:00",
+          "ref": "a3f21c"
+        },
+        {
+          "type": "helm_release",
+          "occurred_at": "2026-07-18T14:31:00",
+          "ref": "rev48"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-18T14:32:30",
+          "ref": "alert-pool-exhausted-1"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T14:32:30",
+          "ref": "PoolExhausted"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-a3f21c",
+          "service": "checkout-service",
+          "summary": "reduce db.connectionPoolSize 50 -> 10",
+          "deployed_by": "jmartin",
+          "occurred_at": "2026-07-18T14:31:00",
+          "confidence": 0.331,
+          "confidence_breakdown": {
+            "rule_score": 0.662,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 90.0,
+              "deploy_id": "deploy-a3f21c"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "connection",
+                "connectionpool",
+                "pool"
+              ],
+              "deploy_id": "deploy-a3f21c"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-d9e102",
+          "service": "checkout-service",
+          "summary": "bump logging library version",
+          "deployed_by": "alice",
+          "occurred_at": "2026-07-18T14:00:00",
+          "confidence": 0.173,
+          "confidence_breakdown": {
+            "rule_score": 0.345,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 1950.0,
+              "deploy_id": "deploy-d9e102"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "helm_rollback:checkout-service:47"
+    },
+    {
+      "id": "crash_loop_backoff",
+      "title": "Pod crash loop detected: payments-service restarting repeatedly",
+      "service": "payments-service",
+      "severity": "critical",
+      "status": "identified",
+      "opened_at": "2026-07-18T09:43:00",
+      "difficulty": "medium",
+      "description": "A deploy changes payments-service's container entrypoint to a script that doesn't exist in the image, sending pods into CrashLoopBackOff ~3 minutes later. Two decoys: an unrelated same-service deploy 40 minutes earlier, and a ledger-service deploy that lands *closer* to the alert than the culprit \u2014 time proximity alone would rank the wrong deploy first.",
+      "alerts": [
+        {
+          "id": "alert-crash-loop-1",
+          "service": "payments-service",
+          "title": "Pod crash loop detected: payments-service restarting repeatedly",
+          "severity": "critical",
+          "fired_at": "2026-07-18T09:43:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T09:00:00",
+          "ref": "deploy-11aa22"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T09:40:00",
+          "ref": "deploy-b7c9e4"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-18T09:40:00",
+          "ref": "b7c9e4"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T09:41:00",
+          "ref": "deploy-33cc44"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T09:41:30",
+          "ref": "BackOff"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T09:42:45",
+          "ref": "CrashLoopBackOff"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-18T09:43:00",
+          "ref": "alert-crash-loop-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-b7c9e4",
+          "service": "payments-service",
+          "summary": "change container entrypoint to ./run.sh and drop wrapper command",
+          "deployed_by": "sam",
+          "occurred_at": "2026-07-18T09:40:00",
+          "confidence": 0.304,
+          "confidence_breakdown": {
+            "rule_score": 0.608,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 180.0,
+              "deploy_id": "deploy-b7c9e4"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "payments-service",
+              "alert_service": "payments-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "command",
+                "entrypoint"
+              ],
+              "deploy_id": "deploy-b7c9e4"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "payments-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-33cc44",
+          "service": "ledger-service",
+          "summary": "add monthly settlement report",
+          "deployed_by": "wei",
+          "occurred_at": "2026-07-18T09:41:00",
+          "confidence": 0.178,
+          "confidence_breakdown": {
+            "rule_score": 0.356,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 120.0,
+              "deploy_id": "deploy-33cc44"
+            },
+            "ownership_distance": {
+              "hops": 1,
+              "deploy_service": "ledger-service",
+              "alert_service": "payments-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 2,
+              "service": "ledger-service"
+            }
+          }
+        },
+        {
+          "rank": 3,
+          "deploy_id": "deploy-11aa22",
+          "service": "payments-service",
+          "summary": "update receipt email copy",
+          "deployed_by": "priya",
+          "occurred_at": "2026-07-18T09:00:00",
+          "confidence": 0.163,
+          "confidence_breakdown": {
+            "rule_score": 0.326,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 2580.0,
+              "deploy_id": "deploy-11aa22"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "payments-service",
+              "alert_service": "payments-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "payments-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:payments-service:b7c9e4"
+    },
+    {
+      "id": "oom_killed",
+      "title": "Pod OOMKilled: memory usage exceeded limit",
+      "service": "inventory-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-18T12:30:00",
+      "difficulty": "hard",
+      "description": "A Helm values change halves inventory-service's memory limit. Memory climbs for 90 minutes before pods start getting OOMKilled. A decoy deploy (tracing instrumentation) lands just 10 minutes before the alert \u2014 time proximity favors the decoy, and diff keyword evidence must outweigh it.",
+      "alerts": [
+        {
+          "id": "alert-oom-killed-1",
+          "service": "inventory-service",
+          "title": "Pod OOMKilled: memory usage exceeded limit",
+          "severity": "high",
+          "fired_at": "2026-07-18T12:30:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T11:00:00",
+          "ref": "deploy-e5f807"
+        },
+        {
+          "type": "helm_release",
+          "occurred_at": "2026-07-18T11:00:00",
+          "ref": "rev12"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T12:20:00",
+          "ref": "deploy-99bb00"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T12:29:30",
+          "ref": "OOMKilling"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-18T12:30:00",
+          "ref": "alert-oom-killed-1"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T12:30:15",
+          "ref": "BackOff"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-e5f807",
+          "service": "inventory-service",
+          "summary": "reduce container memory limit 512Mi to 256Mi in resources block",
+          "deployed_by": "derya",
+          "occurred_at": "2026-07-18T11:00:00",
+          "confidence": 0.251,
+          "confidence_breakdown": {
+            "rule_score": 0.502,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 5400.0,
+              "deploy_id": "deploy-e5f807"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "inventory-service",
+              "alert_service": "inventory-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "limit",
+                "memory",
+                "resources"
+              ],
+              "deploy_id": "deploy-e5f807"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "inventory-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-99bb00",
+          "service": "inventory-service",
+          "summary": "add tracing spans to stock lookup",
+          "deployed_by": "marco",
+          "occurred_at": "2026-07-18T12:20:00",
+          "confidence": 0.193,
+          "confidence_breakdown": {
+            "rule_score": 0.386,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 600.0,
+              "deploy_id": "deploy-99bb00"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "inventory-service",
+              "alert_service": "inventory-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "inventory-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "helm_rollback:inventory-service:11"
+    },
+    {
+      "id": "image_pull_backoff",
+      "title": "Deployment replicas unavailable: image pull failure",
+      "service": "notifications-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-18T16:22:00",
+      "difficulty": "medium",
+      "description": "A deploy bumps notifications-service to image tag v2.4.1, which was never pushed to the registry (should have been v2.4.0); pods immediately fail to pull. The decoy is a same-service registry-credentials rotation 20 minutes earlier whose diff partially matches the alert's keywords (registry) \u2014 both candidates fire diff_keyword_match, so the ranking must discriminate on keyword strength and timing, not rule presence.",
+      "alerts": [
+        {
+          "id": "alert-image-pull-1",
+          "service": "notifications-service",
+          "title": "Deployment replicas unavailable: image pull failure",
+          "severity": "high",
+          "fired_at": "2026-07-18T16:22:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T16:00:00",
+          "ref": "deploy-77ee88"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T16:20:00",
+          "ref": "deploy-f4a3d1"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-18T16:20:00",
+          "ref": "f4a3d1"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T16:20:40",
+          "ref": "ErrImagePull"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T16:21:30",
+          "ref": "ImagePullBackOff"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-18T16:22:00",
+          "ref": "alert-image-pull-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-f4a3d1",
+          "service": "notifications-service",
+          "summary": "bump image tag to v2.4.1",
+          "deployed_by": "oscar",
+          "occurred_at": "2026-07-18T16:20:00",
+          "confidence": 0.331,
+          "confidence_breakdown": {
+            "rule_score": 0.662,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 120.0,
+              "deploy_id": "deploy-f4a3d1"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "notifications-service",
+              "alert_service": "notifications-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "deployment",
+                "image",
+                "tag"
+              ],
+              "deploy_id": "deploy-f4a3d1"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "notifications-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-77ee88",
+          "service": "notifications-service",
+          "summary": "rotate container registry credentials",
+          "deployed_by": "lena",
+          "occurred_at": "2026-07-18T16:00:00",
+          "confidence": 0.234,
+          "confidence_breakdown": {
+            "rule_score": 0.469,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 1320.0,
+              "deploy_id": "deploy-77ee88"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "notifications-service",
+              "alert_service": "notifications-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "registry"
+              ],
+              "deploy_id": "deploy-77ee88"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "notifications-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:notifications-service:f4a3d1"
+    },
+    {
+      "id": "bad_configmap",
+      "title": "checkout-service: payment request timeouts spiking",
+      "service": "checkout-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-18T18:35:00",
+      "difficulty": "hard",
+      "description": "A ConfigMap change (via ArgoCD sync) sets payments-service's HTTP client timeout to 50ms instead of 5000ms. Payments' outbound calls start timing out, and the alert fires on checkout-service \u2014 one dependency hop away from the true cause. The decoy is a same-service checkout deploy 20 minutes before the alert. A pipeline that can't traverse the graph in the causal direction ranks the decoy first.",
+      "alerts": [
+        {
+          "id": "alert-payment-timeouts-1",
+          "service": "checkout-service",
+          "title": "checkout-service: payment request timeouts spiking",
+          "severity": "high",
+          "fired_at": "2026-07-18T18:35:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T18:15:00",
+          "ref": "deploy-55dd66"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T18:33:00",
+          "ref": "deploy-c0ff33"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-18T18:33:00",
+          "ref": "c0ff33"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T18:33:10",
+          "ref": "Killing"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T18:33:40",
+          "ref": "Started"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-18T18:35:00",
+          "ref": "alert-payment-timeouts-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-c0ff33",
+          "service": "payments-service",
+          "summary": "set HTTP_CLIENT_TIMEOUT_MS to 50 in payments ConfigMap",
+          "deployed_by": "argocd-sync",
+          "occurred_at": "2026-07-18T18:33:00",
+          "confidence": 0.276,
+          "confidence_breakdown": {
+            "rule_score": 0.551,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 120.0,
+              "deploy_id": "deploy-c0ff33"
+            },
+            "ownership_distance": {
+              "hops": 1,
+              "deploy_service": "payments-service",
+              "alert_service": "checkout-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "payment",
+                "timeout"
+              ],
+              "deploy_id": "deploy-c0ff33"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "payments-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-55dd66",
+          "service": "checkout-service",
+          "summary": "refactor cart session handling",
+          "deployed_by": "noor",
+          "occurred_at": "2026-07-18T18:15:00",
+          "confidence": 0.178,
+          "confidence_breakdown": {
+            "rule_score": 0.355,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 1200.0,
+              "deploy_id": "deploy-55dd66"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:payments-service:c0ff33"
+    },
+    {
+      "id": "bad_secret",
+      "title": "api-gateway: 401 spike after token secret validation failures",
+      "service": "api-gateway",
+      "severity": "critical",
+      "status": "identified",
+      "opened_at": "2026-07-18T21:54:00",
+      "difficulty": "hard",
+      "description": "auth-service rotates its JWT signing secret, but tokens issued under the old key are still in flight and the gateway's cached keyset no longer validates them \u2014 401s spike at api-gateway, two dependency hops from the cause. The decoy (a user-service query optimization) sits only one hop away, so graph distance favors the decoy; auth's blast radius as a shared dependency plus the secret keyword evidence must overcome it.",
+      "alerts": [
+        {
+          "id": "alert-auth-401-spike-1",
+          "service": "api-gateway",
+          "title": "api-gateway: 401 spike after token secret validation failures",
+          "severity": "critical",
+          "fired_at": "2026-07-18T21:54:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T21:24:00",
+          "ref": "deploy-22ff11"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T21:50:00",
+          "ref": "deploy-5ec4e7"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-18T21:50:00",
+          "ref": "5ec4e7"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T21:50:15",
+          "ref": "Killing"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-18T21:50:50",
+          "ref": "Started"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-18T21:54:00",
+          "ref": "alert-auth-401-spike-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-5ec4e7",
+          "service": "auth-service",
+          "summary": "rotate JWT signing secret for auth-service",
+          "deployed_by": "ines",
+          "occurred_at": "2026-07-18T21:50:00",
+          "confidence": 0.199,
+          "confidence_breakdown": {
+            "rule_score": 0.399,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 240.0,
+              "deploy_id": "deploy-5ec4e7"
+            },
+            "ownership_distance": {
+              "hops": 2,
+              "deploy_service": "auth-service",
+              "alert_service": "api-gateway"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "secret"
+              ],
+              "deploy_id": "deploy-5ec4e7"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 2,
+              "service": "auth-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-22ff11",
+          "service": "user-service",
+          "summary": "optimize profile query caching",
+          "deployed_by": "ravi",
+          "occurred_at": "2026-07-18T21:24:00",
+          "confidence": 0.146,
+          "confidence_breakdown": {
+            "rule_score": 0.292,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 1800.0,
+              "deploy_id": "deploy-22ff11"
+            },
+            "ownership_distance": {
+              "hops": 1,
+              "deploy_service": "user-service",
+              "alert_service": "api-gateway"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "user-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:auth-service:5ec4e7"
+    },
+    {
+      "id": "bad_rollout",
+      "title": "checkout-service: 500 error rate spike on /cart/discount",
+      "service": "checkout-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-18T13:45:00",
+      "difficulty": "hard",
+      "description": "checkout-service ships three deploys in one afternoon with no canary. The middle one reworks discount-code validation and silently rejects legacy code formats; nothing fails until a marketing campaign (SUMMER26) drives traffic into the broken path 105 minutes later. All three candidates tie on time-window presence, ownership, and blast radius, and the newest deploy is closest to the alert \u2014 only the 'discount'/'cart' tokens from the alert title link the diff to the failure.",
+      "alerts": [
+        {
+          "id": "alert-checkout-500s-1",
+          "service": "checkout-service",
+          "title": "checkout-service: 500 error rate spike on /cart/discount",
+          "severity": "high",
+          "fired_at": "2026-07-18T13:45:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T11:50:00",
+          "ref": "deploy-aa0011"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T12:00:00",
+          "ref": "deploy-d15c07"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-18T12:00:00",
+          "ref": "d15c07"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-18T13:05:00",
+          "ref": "deploy-bb2233"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-18T13:45:00",
+          "ref": "alert-checkout-500s-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-d15c07",
+          "service": "checkout-service",
+          "summary": "rework discount code validation in cart flow",
+          "deployed_by": "anika",
+          "occurred_at": "2026-07-18T12:00:00",
+          "confidence": 0.211,
+          "confidence_breakdown": {
+            "rule_score": 0.423,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 6300.0,
+              "deploy_id": "deploy-d15c07"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "cart",
+                "discount"
+              ],
+              "deploy_id": "deploy-d15c07"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-bb2233",
+          "service": "checkout-service",
+          "summary": "adjust logging verbosity for payment client",
+          "deployed_by": "tomas",
+          "occurred_at": "2026-07-18T13:05:00",
+          "confidence": 0.166,
+          "confidence_breakdown": {
+            "rule_score": 0.332,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 2400.0,
+              "deploy_id": "deploy-bb2233"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            }
+          }
+        },
+        {
+          "rank": 3,
+          "deploy_id": "deploy-aa0011",
+          "service": "checkout-service",
+          "summary": "update SEO metadata rendering",
+          "deployed_by": "tomas",
+          "occurred_at": "2026-07-18T11:50:00",
+          "confidence": 0.098,
+          "confidence_breakdown": {
+            "rule_score": 0.196,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 6900.0,
+              "deploy_id": "deploy-aa0011"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:checkout-service:d15c07"
+    },
+    {
+      "id": "deadlock",
+      "title": "orders-service: database deadlock errors spiking",
+      "service": "orders-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-19T10:45:00",
+      "difficulty": "hard",
+      "description": "billing-service ships an invoice-reconciliation job that batch-updates the orders table; its lock ordering collides with orders-service's row updates and deadlocks spike 4 minutes later. There is no depends_on path between the two services in either direction \u2014 they are coupled only as co-writers of orders-db. The decoy is a same-service orders-service deploy 45 minutes before the alert; a graph that can't see sibling coupling ranks the decoy first.",
+      "alerts": [
+        {
+          "id": "alert-orders-deadlock-1",
+          "service": "orders-service",
+          "title": "orders-service: database deadlock errors spiking",
+          "severity": "high",
+          "fired_at": "2026-07-19T10:45:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-19T10:00:00",
+          "ref": "deploy-0rd3r5"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-19T10:41:00",
+          "ref": "deploy-dead10"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-19T10:41:00",
+          "ref": "dead10"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-19T10:45:00",
+          "ref": "alert-orders-deadlock-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-dead10",
+          "service": "billing-service",
+          "summary": "add invoice reconciliation job that batch-updates orders table in a transaction",
+          "deployed_by": "grace",
+          "occurred_at": "2026-07-19T10:41:00",
+          "confidence": 0.193,
+          "confidence_breakdown": {
+            "rule_score": 0.386,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 240.0,
+              "deploy_id": "deploy-dead10"
+            },
+            "ownership_distance": {
+              "hops": 2,
+              "deploy_service": "billing-service",
+              "alert_service": "orders-service",
+              "shared_dependency": "orders-db"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "transaction"
+              ],
+              "deploy_id": "deploy-dead10"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "billing-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-0rd3r5",
+          "service": "orders-service",
+          "summary": "improve order search pagination",
+          "deployed_by": "felix",
+          "occurred_at": "2026-07-19T10:00:00",
+          "confidence": 0.161,
+          "confidence_breakdown": {
+            "rule_score": 0.323,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 2700.0,
+              "deploy_id": "deploy-0rd3r5"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "orders-service",
+              "alert_service": "orders-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "orders-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:billing-service:dead10"
+    },
+    {
+      "id": "slow_query",
+      "title": "orders-service: p99 latency high on order history queries",
+      "service": "orders-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-19T15:10:00",
+      "difficulty": "hard",
+      "description": "An orders-service 'cleanup' migration drops an index believed unused; order-history queries fall back to sequential scans and p99 climbs for 70 minutes. The decoy \u2014 a billing-service report job reading the same orders table \u2014 is sibling-coupled via orders-db, keyword-adjacent, and lands 15 minutes before the alert: it fires all four rules and must still lose to the same-service culprit with the stronger diff match.",
+      "alerts": [
+        {
+          "id": "alert-orders-p99-1",
+          "service": "orders-service",
+          "title": "orders-service: p99 latency high on order history queries",
+          "severity": "high",
+          "fired_at": "2026-07-19T15:10:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-19T14:00:00",
+          "ref": "deploy-fa57db"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-19T14:00:00",
+          "ref": "fa57db"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-19T14:55:00",
+          "ref": "deploy-b1111n6"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-19T15:10:00",
+          "ref": "alert-orders-p99-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-fa57db",
+          "service": "orders-service",
+          "summary": "drop unused index idx_orders_customer_created on orders table",
+          "deployed_by": "felix",
+          "occurred_at": "2026-07-19T14:00:00",
+          "confidence": 0.243,
+          "confidence_breakdown": {
+            "rule_score": 0.486,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 4200.0,
+              "deploy_id": "deploy-fa57db"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "orders-service",
+              "alert_service": "orders-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "history",
+                "order"
+              ],
+              "deploy_id": "deploy-fa57db"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "orders-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-b1111n6",
+          "service": "billing-service",
+          "summary": "add hourly revenue report job reading orders table",
+          "deployed_by": "grace",
+          "occurred_at": "2026-07-19T14:55:00",
+          "confidence": 0.183,
+          "confidence_breakdown": {
+            "rule_score": 0.366,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 900.0,
+              "deploy_id": "deploy-b1111n6"
+            },
+            "ownership_distance": {
+              "hops": 2,
+              "deploy_service": "billing-service",
+              "alert_service": "orders-service",
+              "shared_dependency": "orders-db"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "order"
+              ],
+              "deploy_id": "deploy-b1111n6"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "billing-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:orders-service:fa57db"
+    },
+    {
+      "id": "alert_storm",
+      "title": "payments-service: HTTP 500 error rate critical",
+      "service": "payments-service",
+      "severity": "critical",
+      "status": "identified",
+      "opened_at": "2026-07-19T16:32:00",
+      "difficulty": "hard",
+      "description": "payments-service enables strict TLS verification with a broken CA bundle; every outbound gateway call fails. Within four minutes, alerts fire on payments, checkout (1 hop), refunds (1 hop), and api-gateway (2 hops). The decoy \u2014 an unrelated checkout deploy 10 minutes before the culprit \u2014 scores well against the checkout alert alone but is causally invisible to the payments alert; averaging across the storm separates a cause that explains everything from one that explains one thing.",
+      "alerts": [
+        {
+          "id": "alert-payments-500s-1",
+          "service": "payments-service",
+          "title": "payments-service: HTTP 500 error rate critical",
+          "severity": "critical",
+          "fired_at": "2026-07-19T16:32:00"
+        },
+        {
+          "id": "alert-checkout-payment-failures-1",
+          "service": "checkout-service",
+          "title": "checkout-service: payment step failures spiking",
+          "severity": "high",
+          "fired_at": "2026-07-19T16:33:00"
+        },
+        {
+          "id": "alert-refunds-failures-1",
+          "service": "refunds-service",
+          "title": "refunds-service: refund processing failures",
+          "severity": "high",
+          "fired_at": "2026-07-19T16:33:30"
+        },
+        {
+          "id": "alert-gateway-5xx-1",
+          "service": "api-gateway",
+          "title": "api-gateway: elevated 5xx from downstream",
+          "severity": "high",
+          "fired_at": "2026-07-19T16:34:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-19T16:20:00",
+          "ref": "deploy-c4ec00"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-19T16:30:00",
+          "ref": "deploy-570rm1"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-19T16:30:00",
+          "ref": "570rm1"
+        },
+        {
+          "type": "k8s_event",
+          "occurred_at": "2026-07-19T16:30:45",
+          "ref": "Started"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-19T16:32:00",
+          "ref": "alert-payments-500s-1"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-19T16:33:00",
+          "ref": "alert-checkout-payment-failures-1"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-19T16:33:30",
+          "ref": "alert-refunds-failures-1"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-19T16:34:00",
+          "ref": "alert-gateway-5xx-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-570rm1",
+          "service": "payments-service",
+          "summary": "enable strict TLS verification for outbound payment gateway connections",
+          "deployed_by": "sam",
+          "occurred_at": "2026-07-19T16:30:00",
+          "confidence": 0.202,
+          "confidence_breakdown": {
+            "rule_score": 0.404,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "historical_pattern_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 120.0,
+              "deploy_id": "deploy-570rm1"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "payments-service",
+              "alert_service": "payments-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 3,
+              "service": "payments-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "payment"
+              ],
+              "deploy_id": "deploy-570rm1"
+            },
+            "historical_pattern_match": {
+              "incident_id": "bad_configmap",
+              "similarity": 0.201,
+              "past_root_cause": "{'files_changed': ['configmap.yaml'], 'summary': 'set HTTP_CLIENT_TIMEOUT_MS to 50 in payments ConfigMap'} HTTP_CLIENT_TIMEOUT_MS set to 50 (unit confusion, meant 5000); payments gateway calls time out, surfacing as checkout payment failures.",
+              "past_resolution": "pr_revert:payments-service:c0ff33"
+            },
+            "alerts_correlated": 4
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-c4ec00",
+          "service": "checkout-service",
+          "summary": "update checkout page banner copy",
+          "deployed_by": "noor",
+          "occurred_at": "2026-07-19T16:20:00",
+          "confidence": 0.122,
+          "confidence_breakdown": {
+            "rule_score": 0.245,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            },
+            "time_proximity": {
+              "gap_seconds": 780.0,
+              "deploy_id": "deploy-c4ec00"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "alerts_correlated": 3
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:payments-service:570rm1"
+    }
+  ]
+}
