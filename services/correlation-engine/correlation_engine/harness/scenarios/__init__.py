@@ -1,6 +1,11 @@
 from ..schema import Scenario
 from . import (
     alert_storm,
+    dns_failure,
+    feature_flag_failure,
+    missing_metrics,
+    terraform_drift,
+    terraform_iam_break,
     bad_configmap,
     bad_rollout,
     bad_secret,
@@ -23,6 +28,11 @@ _BUILDERS = (
     deadlock.build,
     slow_query.build,
     alert_storm.build,
+    terraform_iam_break.build,
+    terraform_drift.build,
+    dns_failure.build,
+    feature_flag_failure.build,
+    missing_metrics.build,
 )
 
 ALL_SCENARIOS: tuple[Scenario, ...] = tuple(builder() for builder in _BUILDERS)

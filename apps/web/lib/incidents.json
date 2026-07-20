@@ -1398,6 +1398,609 @@
         }
       ],
       "proposed_remediation": "pr_revert:payments-service:570rm1"
+    },
+    {
+      "id": "terraform_iam_break",
+      "title": "uploads-service: S3 access denied (AccessDenied) on object downloads",
+      "service": "uploads-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-20T09:50:00",
+      "difficulty": "medium",
+      "description": "A least-privilege cleanup removes s3:GetObject from uploads-service's IAM role. Nothing fails until the service's cached credentials refresh 50 minutes later, when downloads start returning AccessDenied. A same-service code deploy (thumbnail generation) lands 10 minutes before the alert \u2014 time proximity favors it; the access/object keyword evidence must pull the Terraform change back to rank one.",
+      "alerts": [
+        {
+          "id": "alert-uploads-access-denied-1",
+          "service": "uploads-service",
+          "title": "uploads-service: S3 access denied (AccessDenied) on object downloads",
+          "severity": "high",
+          "fired_at": "2026-07-20T09:50:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T09:00:00",
+          "ref": "deploy-a1m901"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-20T09:00:00",
+          "ref": "a1m901"
+        },
+        {
+          "type": "terraform_change",
+          "occurred_at": "2026-07-20T09:00:00",
+          "ref": "aws_iam_role_policy.uploads_service"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T09:40:00",
+          "ref": "deploy-7humb5"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-20T09:50:00",
+          "ref": "alert-uploads-access-denied-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-a1m901",
+          "service": "uploads-service",
+          "summary": "remove s3:GetObject and s3:ListBucket access from uploads-service role",
+          "deployed_by": "terraform-apply (pr #412)",
+          "occurred_at": "2026-07-20T09:00:00",
+          "confidence": 0.261,
+          "confidence_breakdown": {
+            "rule_score": 0.522,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 3000.0,
+              "deploy_id": "deploy-a1m901"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "uploads-service",
+              "alert_service": "uploads-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "access",
+                "object"
+              ],
+              "deploy_id": "deploy-a1m901"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "uploads-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-7humb5",
+          "service": "uploads-service",
+          "summary": "add thumbnail generation for image previews",
+          "deployed_by": "marta",
+          "occurred_at": "2026-07-20T09:40:00",
+          "confidence": 0.193,
+          "confidence_breakdown": {
+            "rule_score": 0.386,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 600.0,
+              "deploy_id": "deploy-7humb5"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "uploads-service",
+              "alert_service": "uploads-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "uploads-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:uploads-service:a1m901"
+    },
+    {
+      "id": "terraform_drift",
+      "title": "payments-service: database connection timeouts spiking",
+      "service": "payments-service",
+      "severity": "critical",
+      "status": "identified",
+      "opened_at": "2026-07-20T13:38:00",
+      "difficulty": "hard",
+      "description": "Someone tightens payments-db's security group in the AWS console; the drift detector captures the delta. Five-minute-old connections start timing out and payments-service alerts \u2014 one hop downstream of the drifted resource. The true cause has no git SHA, no changed files, and no commit in evidence; the decoy (a same-service email-template deploy) has all three and must still lose.",
+      "alerts": [
+        {
+          "id": "alert-payments-db-timeouts-1",
+          "service": "payments-service",
+          "title": "payments-service: database connection timeouts spiking",
+          "severity": "critical",
+          "fired_at": "2026-07-20T13:38:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T13:13:00",
+          "ref": "deploy-1nv01c"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T13:30:00",
+          "ref": "deploy-dr1f7d"
+        },
+        {
+          "type": "terraform_change",
+          "occurred_at": "2026-07-20T13:30:00",
+          "ref": "aws_security_group.payments_db"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-20T13:38:00",
+          "ref": "alert-payments-db-timeouts-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-dr1f7d",
+          "service": "payments-db",
+          "summary": "drift detected: security group ingress rule removed \u2014 postgres 5432 database access from payments subnet",
+          "deployed_by": "out-of-band (console)",
+          "occurred_at": "2026-07-20T13:30:00",
+          "confidence": 0.231,
+          "confidence_breakdown": {
+            "rule_score": 0.462,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 480.0,
+              "deploy_id": "deploy-dr1f7d"
+            },
+            "ownership_distance": {
+              "hops": 1,
+              "deploy_service": "payments-db",
+              "alert_service": "payments-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "database"
+              ],
+              "deploy_id": "deploy-dr1f7d"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 3,
+              "service": "payments-db"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-1nv01c",
+          "service": "payments-service",
+          "summary": "restructure invoice email templates",
+          "deployed_by": "noor",
+          "occurred_at": "2026-07-20T13:13:00",
+          "confidence": 0.18,
+          "confidence_breakdown": {
+            "rule_score": 0.359,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 1500.0,
+              "deploy_id": "deploy-1nv01c"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "payments-service",
+              "alert_service": "payments-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "payments-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": null
+    },
+    {
+      "id": "dns_failure",
+      "title": "checkout-service: upstream hostname resolution failures (DNS)",
+      "service": "checkout-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-20T15:20:00",
+      "difficulty": "medium",
+      "description": "A CoreDNS Corefile change replaces the upstream resolver list and internal hostname resolution starts failing. The alert fires on checkout-service, one hop from cluster-dns \u2014 a node three services depend on. The decoy (a checkout hero-image deploy) is same-service and five minutes from the alert; the shared-infra culprit wins on the dns/resolver keyword class, its 3-dependent blast radius, and graph coupling.",
+      "alerts": [
+        {
+          "id": "alert-checkout-dns-1",
+          "service": "checkout-service",
+          "title": "checkout-service: upstream hostname resolution failures (DNS)",
+          "severity": "high",
+          "fired_at": "2026-07-20T15:20:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T15:00:00",
+          "ref": "deploy-c0red5"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-20T15:00:00",
+          "ref": "c0red5"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T15:15:00",
+          "ref": "deploy-h3r0e5"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-20T15:20:00",
+          "ref": "alert-checkout-dns-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-c0red5",
+          "service": "cluster-dns",
+          "summary": "tighten CoreDNS forward plugin: replace upstream resolver list",
+          "deployed_by": "platform-team",
+          "occurred_at": "2026-07-20T15:00:00",
+          "confidence": 0.305,
+          "confidence_breakdown": {
+            "rule_score": 0.61,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 1200.0,
+              "deploy_id": "deploy-c0red5"
+            },
+            "ownership_distance": {
+              "hops": 1,
+              "deploy_service": "cluster-dns",
+              "alert_service": "checkout-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "dns",
+                "resolver",
+                "upstream"
+              ],
+              "deploy_id": "deploy-c0red5"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 4,
+              "service": "cluster-dns"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-h3r0e5",
+          "service": "checkout-service",
+          "summary": "update product page hero images",
+          "deployed_by": "ines",
+          "occurred_at": "2026-07-20T15:15:00",
+          "confidence": 0.198,
+          "confidence_breakdown": {
+            "rule_score": 0.395,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 300.0,
+              "deploy_id": "deploy-h3r0e5"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:cluster-dns:c0red5"
+    },
+    {
+      "id": "feature_flag_failure",
+      "title": "pricing-service: pricing calculation errors spiking",
+      "service": "pricing-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-20T17:45:00",
+      "difficulty": "medium",
+      "description": "The new-pricing-engine flag ramps 0% -> 100% and pricing errors spike three minutes later: negative totals on bundle SKUs. The flag flip has no commit, no files, no rollout \u2014 the same-service decoy (a currency refactor deployed 45 minutes earlier) has all the code artifacts and must still lose to a console click.",
+      "alerts": [
+        {
+          "id": "alert-pricing-errors-1",
+          "service": "pricing-service",
+          "title": "pricing-service: pricing calculation errors spiking",
+          "severity": "high",
+          "fired_at": "2026-07-20T17:45:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T17:00:00",
+          "ref": "deploy-cc0nv3"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-20T17:00:00",
+          "ref": "cc0nv3"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T17:42:00",
+          "ref": "deploy-f1a6up"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-20T17:45:00",
+          "ref": "alert-pricing-errors-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-f1a6up",
+          "service": "pricing-service",
+          "summary": "ramp flag new-pricing-engine 0% -> 100% for pricing-service",
+          "deployed_by": "lena (flag console)",
+          "occurred_at": "2026-07-20T17:42:00",
+          "confidence": 0.258,
+          "confidence_breakdown": {
+            "rule_score": 0.516,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 180.0,
+              "deploy_id": "deploy-f1a6up"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "pricing-service",
+              "alert_service": "pricing-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "pricing"
+              ],
+              "deploy_id": "deploy-f1a6up"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 2,
+              "service": "pricing-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-cc0nv3",
+          "service": "pricing-service",
+          "summary": "refactor currency conversion helpers",
+          "deployed_by": "tomas",
+          "occurred_at": "2026-07-20T17:00:00",
+          "confidence": 0.168,
+          "confidence_breakdown": {
+            "rule_score": 0.336,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 2700.0,
+              "deploy_id": "deploy-cc0nv3"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "pricing-service",
+              "alert_service": "pricing-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 2,
+              "service": "pricing-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "flag_revert:new-pricing-engine"
+    },
+    {
+      "id": "missing_metrics",
+      "title": "search-service: metrics absent \u2014 scrape target down",
+      "service": "search-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-20T19:35:00",
+      "difficulty": "medium",
+      "description": "A deploy renames search-service's metrics port (9090 -> 9464) and moves the handler; Prometheus scrapes hit connection refused and the absent-target alert fires four minutes later. The service itself is fully healthy \u2014 no errors, no k8s events \u2014 the only casualty is observability. The decoy is an earlier same-service ranking change with no telemetry keywords.",
+      "alerts": [
+        {
+          "id": "alert-search-metrics-absent-1",
+          "service": "search-service",
+          "title": "search-service: metrics absent \u2014 scrape target down",
+          "severity": "high",
+          "fired_at": "2026-07-20T19:35:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T19:00:00",
+          "ref": "deploy-r4nk3r"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-20T19:31:00",
+          "ref": "deploy-9464aa"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-20T19:31:00",
+          "ref": "9464aa"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-20T19:35:00",
+          "ref": "alert-search-metrics-absent-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-9464aa",
+          "service": "search-service",
+          "summary": "rename metrics port 9090 to 9464 and move handler to /telemetry",
+          "deployed_by": "oscar",
+          "occurred_at": "2026-07-20T19:31:00",
+          "confidence": 0.251,
+          "confidence_breakdown": {
+            "rule_score": 0.501,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 240.0,
+              "deploy_id": "deploy-9464aa"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "search-service",
+              "alert_service": "search-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "metrics"
+              ],
+              "deploy_id": "deploy-9464aa"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "search-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-r4nk3r",
+          "service": "search-service",
+          "summary": "tune ranking boost weights",
+          "deployed_by": "wei",
+          "occurred_at": "2026-07-20T19:00:00",
+          "confidence": 0.17,
+          "confidence_breakdown": {
+            "rule_score": 0.341,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 2100.0,
+              "deploy_id": "deploy-r4nk3r"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "search-service",
+              "alert_service": "search-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "search-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:search-service:9464aa"
     }
   ]
 }

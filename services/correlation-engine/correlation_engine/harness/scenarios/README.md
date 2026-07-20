@@ -20,6 +20,11 @@ covered by `tests/test_scenarios.py`'s all-scenarios regression loop.
 | `deadlock` | Database | hard | [`deadlock.py`](deadlock.py) — sibling culprit through a shared database; no depends_on path in either direction |
 | `slow_query` | Database | hard | [`slow_query.py`](slow_query.py) — index-drop migration; sibling decoy fires all four rules and must still lose |
 | `alert_storm` | Observability | hard | [`alert_storm.py`](alert_storm.py) — one root cause, four alerts across the tree; multi-alert aggregation |
+| `terraform_iam_break` | Infrastructure | medium | [`terraform_iam_break.py`](terraform_iam_break.py) — first Terraform-sourced culprit; delayed cross-layer failure |
+| `terraform_drift` | Infrastructure | hard | [`terraform_drift.py`](terraform_drift.py) — out-of-band console change; culprit has no git commit at all |
+| `dns_failure` | Network | medium | [`dns_failure.py`](dns_failure.py) — shared-infra node (cluster-dns) with the catalog's largest blast radius |
+| `feature_flag_failure` | Deployment | medium | [`feature_flag_failure.py`](feature_flag_failure.py) — flag ramp as a first-class change: no commit, no files, no rollout |
+| `missing_metrics` | Observability | medium | [`missing_metrics.py`](missing_metrics.py) — absent-signal alert; service healthy, only observability broke |
 
 ## Backlog — first 10, in build priority order
 
@@ -27,9 +32,24 @@ Chosen because all are reproducible from Phase 1's actual data sources
 (GitHub deploys + Kubernetes events + Prometheus alerts, see
 [docs/10-roadmap.md](../../../../../docs/10-roadmap.md) Phase 1) — no
 scenario here needs Terraform, service-mesh, or feature-flag ingestion,
-which are Phase 2+. Scenarios needing those (IAM policy, Terraform drift,
-DNS, service mesh routing, NetworkPolicy, feature flags, missing
-metrics/broken scraping) are deferred to a Phase 2 catalog, not dropped.
+which are Phase 2+.
+
+## Phase 2 catalog
+
+Five of the deferred Phase 2 scenarios are implemented (see the table
+above): `terraform_iam_break`, `terraform_drift`, `dns_failure`,
+`feature_flag_failure`, `missing_metrics` — each chosen because it
+exercises an axis the engine had never seen (Terraform evidence, culprits
+with no git artifact, shared-infra blast radius, non-deploy change events,
+absent-signal alerts).
+
+Still deferred, with reasons — not dropped:
+
+| ID | Why deferred |
+|---|---|
+| `mesh_routing` | Its ranking mechanics (partial failure + same-service config change) duplicate bad_rollout + feature_flag coverage; add when mesh topology becomes a real evidence source. |
+| `network_policy_block` | Coupling shape is identical to bad_configmap/terraform_drift (downstream alert, 1 hop); adds a symptom flavor, not an engine path. |
+| `broken_scraping` | Needs monitoring-topology edges ("monitored_by") the Knowledge Graph doesn't model — a deliberate graph extension, not a scenario-writing task. |
 
 | # | ID | Category | Description |
 |---|---|---|---|
