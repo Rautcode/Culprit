@@ -47,6 +47,54 @@ class KnowledgeGraph:
             frontier = next_frontier
         return None
 
+    def _downstream_distances(self, source: str, max_hops: int = MAX_HOPS) -> dict[str, int]:
+        """BFS distance map of everything reachable downstream of source
+        (source itself excluded)."""
+        distances: dict[str, int] = {}
+        frontier = {source}
+        for hop in range(1, max_hops + 1):
+            next_frontier: set[str] = set()
+            for svc in frontier:
+                for nxt in self._downstream.get(svc, ()):
+                    if nxt != source and nxt not in distances:
+                        distances[nxt] = hop
+                        next_frontier.add(nxt)
+            frontier = next_frontier
+        return distances
+
+    def coupling(self, alert_service: str, deploy_service: str, max_hops: int = MAX_HOPS) -> tuple[int, str | None] | None:
+        """Causal coupling distance from the alerting service to the
+        deployed service, with the shared dependency that mediates it (or
+        None for a direct path). Two causal shapes count:
+
+        1. Direct: the alerter's depends_on chain reaches the deployed
+           service (deploy broke a dependency -> dependents alert).
+        2. Sibling: both services depend on a common resource (a shared
+           database, a shared cache) — a deploy on one co-dependent can
+           break the other THROUGH that resource (deadlocks being the
+           canonical case). Distance = hops(alert->shared) +
+           hops(deploy->shared), so direct sharing costs 2 — deliberately
+           weaker than a direct 1-hop dependency. The shared node must be
+           distinct from both endpoints, so "you are my dependency" never
+           re-enters through the sibling path (preserving the direction
+           fix: dependents of the alerter still score zero).
+        """
+        if alert_service == deploy_service:
+            return 0, None
+        best: tuple[int, str | None] | None = None
+        direct = self.hop_distance(alert_service, deploy_service, max_hops)
+        if direct is not None:
+            best = (direct, None)
+        alert_dist = self._downstream_distances(alert_service, max_hops)
+        deploy_dist = self._downstream_distances(deploy_service, max_hops)
+        for shared in alert_dist.keys() & deploy_dist.keys():
+            if shared in (alert_service, deploy_service):
+                continue
+            total = alert_dist[shared] + deploy_dist[shared]
+            if total <= max_hops and (best is None or total < best[0]):
+                best = (total, shared)
+        return best
+
     def dependent_count(self, service: str, max_hops: int = MAX_HOPS) -> int:
         """Blast radius: number of distinct services that (transitively)
         depend on `service` within max_hops — i.e. how many things break if

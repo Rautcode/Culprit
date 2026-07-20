@@ -66,12 +66,12 @@ def _title_tokens(alert: AlertEvent) -> tuple[str, ...]:
 
 
 def time_proximity(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
-    # Fires for the alerting service itself and for anything its dependency
-    # chain reaches — a deploy on a service the alerter depends on is causally
-    # eligible (bad_configmap scenario: alert fires downstream of the cause).
-    # Deploys with no graph path from the alerting service stay at zero no
-    # matter how close in time (crash_loop_backoff's cross-service decoy).
-    if deploy.service != alert.service and graph.hop_distance(alert.service, deploy.service) is None:
+    # Fires for the alerting service itself and for anything causally
+    # coupled to it — a dependency of the alerter (bad_configmap), or a
+    # sibling sharing a resource with it (deadlock). Deploys with no causal
+    # coupling stay at zero no matter how close in time
+    # (crash_loop_backoff's cross-service decoy).
+    if deploy.service != alert.service and graph.coupling(alert.service, deploy.service) is None:
         return 0.0, {}
     delta = (alert.fired_at - deploy.occurred_at).total_seconds()
     if delta < 0 or delta > TIME_WINDOW_SECONDS:
@@ -83,14 +83,19 @@ def time_proximity(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundl
 def ownership_distance(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
     # Direction matters: causality flows from a dependency to its dependents,
     # so we ask "does the alerting service's depends_on chain reach the
-    # deployed service?" (alert.service -> deploy.service). The reverse
-    # traversal would score deploys on *dependents* of the alerter, which
-    # rarely cause its incidents.
-    hops = graph.hop_distance(alert.service, deploy.service)
-    if hops is None:
+    # deployed service?" (alert.service -> deploy.service) — plus the
+    # sibling case: both depend on a shared resource (deadlock scenario).
+    # The reverse traversal would score deploys on *dependents* of the
+    # alerter, which rarely cause its incidents; coupling() excludes it.
+    coupled = graph.coupling(alert.service, deploy.service)
+    if coupled is None:
         return 0.0, {}
+    hops, shared = coupled
     score = max(0.0, 1 - hops / 3)
-    return score, {"hops": hops, "deploy_service": deploy.service, "alert_service": alert.service}
+    evidence = {"hops": hops, "deploy_service": deploy.service, "alert_service": alert.service}
+    if shared is not None:
+        evidence["shared_dependency"] = shared
+    return score, evidence
 
 
 def diff_keyword_match(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:

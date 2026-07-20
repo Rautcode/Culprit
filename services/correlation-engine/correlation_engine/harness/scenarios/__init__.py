@@ -4,6 +4,7 @@ from . import (
     bad_rollout,
     bad_secret,
     crash_loop_backoff,
+    deadlock,
     image_pull_backoff,
     oom_killed,
     pool_exhaustion,
@@ -17,6 +18,7 @@ _BUILDERS = (
     bad_configmap.build,
     bad_secret.build,
     bad_rollout.build,
+    deadlock.build,
 )
 
 ALL_SCENARIOS: tuple[Scenario, ...] = tuple(builder() for builder in _BUILDERS)
