@@ -26,6 +26,8 @@ covered by `tests/test_scenarios.py`'s all-scenarios regression loop.
 | `feature_flag_failure` | Deployment | medium | [`feature_flag_failure.py`](feature_flag_failure.py) — flag ramp as a first-class change: no commit, no files, no rollout |
 | `missing_metrics` | Observability | medium | [`missing_metrics.py`](missing_metrics.py) — absent-signal alert; service healthy, only observability broke |
 | `broken_scraping` | Observability | hard | [`broken_scraping.py`](broken_scraping.py) — monitoring-stack culprit via `monitored_by` edges (ADR 0002); no runtime path to the alerters |
+| `mesh_routing` | Network | medium | [`mesh_routing.py`](mesh_routing.py) — stalled canary promoted to 80%; first partial failure (error rate tracks traffic weight), no code shipped |
+| `network_policy_block` | Network | medium | [`network_policy_block.py`](network_policy_block.py) — security hardening locks out a legitimate caller; immediate total failure from correct YAML |
 
 ## Backlog — first 10, in build priority order
 
@@ -37,21 +39,21 @@ which are Phase 2+.
 
 ## Phase 2 catalog
 
-Six of the deferred Phase 2 scenarios are implemented (see the table
-above): `terraform_iam_break`, `terraform_drift`, `dns_failure`,
-`feature_flag_failure`, `missing_metrics`, `broken_scraping` — each chosen
-because it exercises an axis the engine had never seen (Terraform
-evidence, culprits with no git artifact, shared-infra blast radius,
-non-deploy change events, absent-signal alerts, monitoring topology via
-the `monitored_by` edge type added in
-[ADR 0002](../../../../../docs/adr/0002-monitored-by-edge.md)).
+**The Phase 2 backlog is complete** — all eight deferred scenarios are
+implemented (see the table above). Six drove new engine capability
+(Terraform evidence, culprits with no git artifact, shared-infra blast
+radius, non-deploy change events, absent-signal alerts, monitoring
+topology via the `monitored_by` edge type added in
+[ADR 0002](../../../../../docs/adr/0002-monitored-by-edge.md)); the final
+two (`mesh_routing`, `network_policy_block`) are coverage rows, honestly
+labeled as such in their docstrings — their ranking mechanics were already
+guarded, but traffic-shift and policy-lockout incidents are recurring
+failure classes whose vocabulary belongs in the catalog and the incident
+memory.
 
-Still deferred, with reasons — not dropped:
-
-| ID | Why deferred |
-|---|---|
-| `mesh_routing` | Its ranking mechanics (partial failure + same-service config change) duplicate bad_rollout + feature_flag coverage; add when mesh topology becomes a real evidence source. |
-| `network_policy_block` | Coupling shape is identical to bad_configmap/terraform_drift (downstream alert, 1 hop); adds a symptom flavor, not an engine path. |
+New scenarios from here on come from real usage (the human-feedback loop
+in docs/07-ai-architecture.md § Evaluation), not from brainstormed
+catalogs — the golden set grows from disagreements, not speculation.
 
 | # | ID | Category | Description |
 |---|---|---|---|

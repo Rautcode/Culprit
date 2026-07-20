@@ -1572,16 +1572,17 @@
           "summary": "drift detected: security group ingress rule removed \u2014 postgres 5432 database access from payments subnet",
           "deployed_by": "out-of-band (console)",
           "occurred_at": "2026-07-20T13:30:00",
-          "confidence": 0.231,
+          "confidence": 0.317,
           "confidence_breakdown": {
-            "rule_score": 0.462,
-            "rag_score": 0.0,
+            "rule_score": 0.508,
+            "rag_score": 0.209,
             "llm_adjustment": 0.0
           },
           "rule_hits": [
             "time_proximity",
             "ownership_distance",
             "diff_keyword_match",
+            "historical_pattern_match",
             "blast_radius_weight"
           ],
           "evidence": {
@@ -1600,10 +1601,23 @@
               ],
               "deploy_id": "deploy-dr1f7d"
             },
+            "historical_pattern_match": {
+              "incident_id": "network_policy_block",
+              "similarity": 0.209,
+              "past_root_cause": "{'files_changed': ['policies/payments-netpol.yaml'], 'summary': 'restrict payments ingress NetworkPolicy to pods labeled part-of=payments'} new ingress selector requires part-of=payments; checkout's pods lack the label, so every connection is refused at the CNI layer.",
+              "past_resolution": "pr_revert:payments-service:n37p01"
+            },
             "blast_radius_weight": {
               "dependent_count": 3,
               "service": "payments-db"
-            }
+            },
+            "similar_past_incidents": [
+              {
+                "incident_id": "network_policy_block",
+                "similarity": 0.209,
+                "resolution": "pr_revert:payments-service:n37p01"
+              }
+            ]
           }
         },
         {
@@ -2171,6 +2185,259 @@
         }
       ],
       "proposed_remediation": "pr_revert:prometheus:5cr4p3"
+    },
+    {
+      "id": "mesh_routing",
+      "title": "checkout-service: elevated 500 rate on canary subset v2",
+      "service": "checkout-service",
+      "severity": "high",
+      "status": "identified",
+      "opened_at": "2026-07-21T10:30:00",
+      "difficulty": "medium",
+      "description": "A VirtualService change promotes checkout's v2 canary from 20% to 80% of traffic. v2 has carried a latent loyalty-points bug all week \u2014 at 20% weight the ~2% error rate sat below the alert threshold. No code shipped today; only the traffic split moved. The decoy (a widget CSS deploy) lands 8 minutes before the alert; the canary/subset keyword evidence must outrank it.",
+      "alerts": [
+        {
+          "id": "alert-checkout-canary-500s-1",
+          "service": "checkout-service",
+          "title": "checkout-service: elevated 500 rate on canary subset v2",
+          "severity": "high",
+          "fired_at": "2026-07-21T10:30:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-21T10:00:00",
+          "ref": "deploy-m35hv2"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-21T10:00:00",
+          "ref": "m35hv2"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-21T10:22:00",
+          "ref": "deploy-w1d637"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-21T10:30:00",
+          "ref": "alert-checkout-canary-500s-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-m35hv2",
+          "service": "checkout-service",
+          "summary": "shift checkout route weights across subsets: v1 80->20, canary v2 20->80",
+          "deployed_by": "argocd-sync (pr #519)",
+          "occurred_at": "2026-07-21T10:00:00",
+          "confidence": 0.279,
+          "confidence_breakdown": {
+            "rule_score": 0.559,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 1800.0,
+              "deploy_id": "deploy-m35hv2"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "canary",
+                "subset"
+              ],
+              "deploy_id": "deploy-m35hv2"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            }
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-w1d637",
+          "service": "checkout-service",
+          "summary": "update recommendation widget styles",
+          "deployed_by": "ines",
+          "occurred_at": "2026-07-21T10:22:00",
+          "confidence": 0.195,
+          "confidence_breakdown": {
+            "rule_score": 0.39,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 480.0,
+              "deploy_id": "deploy-w1d637"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:checkout-service:m35hv2"
+    },
+    {
+      "id": "network_policy_block",
+      "title": "checkout-service: connection refused to payments-service upstream",
+      "service": "checkout-service",
+      "severity": "critical",
+      "status": "identified",
+      "opened_at": "2026-07-21T14:30:00",
+      "difficulty": "medium",
+      "description": "A security-hardening PR restricts payments-namespace ingress to pods carrying a new label; checkout's pods don't carry it, and 100% of payment authorizations fail with connection refused the moment the policy syncs. The alert fires on checkout, one hop downstream of the policy change. The YAML is correct and does exactly what it says \u2014 the failure is a missing label on the caller. The decoy is a checkout frontend deploy 20 minutes before the alert.",
+      "alerts": [
+        {
+          "id": "alert-checkout-refused-1",
+          "service": "checkout-service",
+          "title": "checkout-service: connection refused to payments-service upstream",
+          "severity": "critical",
+          "fired_at": "2026-07-21T14:30:00"
+        }
+      ],
+      "timeline": [
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-21T14:10:00",
+          "ref": "deploy-3mp7y5"
+        },
+        {
+          "type": "deploy",
+          "occurred_at": "2026-07-21T14:25:00",
+          "ref": "deploy-n37p01"
+        },
+        {
+          "type": "git_commit",
+          "occurred_at": "2026-07-21T14:25:00",
+          "ref": "n37p01"
+        },
+        {
+          "type": "alert",
+          "occurred_at": "2026-07-21T14:30:00",
+          "ref": "alert-checkout-refused-1"
+        }
+      ],
+      "rca_candidates": [
+        {
+          "rank": 1,
+          "deploy_id": "deploy-n37p01",
+          "service": "payments-service",
+          "summary": "restrict payments ingress NetworkPolicy to pods labeled part-of=payments",
+          "deployed_by": "argocd-sync (security-hardening pr #533)",
+          "occurred_at": "2026-07-21T14:25:00",
+          "confidence": 0.328,
+          "confidence_breakdown": {
+            "rule_score": 0.508,
+            "rag_score": 0.246,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "diff_keyword_match",
+            "historical_pattern_match",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 300.0,
+              "deploy_id": "deploy-n37p01"
+            },
+            "ownership_distance": {
+              "hops": 1,
+              "deploy_service": "payments-service",
+              "alert_service": "checkout-service"
+            },
+            "diff_keyword_match": {
+              "matched_keywords": [
+                "payments"
+              ],
+              "deploy_id": "deploy-n37p01"
+            },
+            "historical_pattern_match": {
+              "incident_id": "terraform_drift",
+              "similarity": 0.246,
+              "past_root_cause": "{'files_changed': [], 'summary': 'drift detected: security group ingress rule removed \u2014 postgres 5432 database access from payments subnet'} ingress rule for postgres 5432 removed out-of-band; payments-service connections to payments-db time out.",
+              "past_resolution": "manual"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 2,
+              "service": "payments-service"
+            },
+            "similar_past_incidents": [
+              {
+                "incident_id": "terraform_drift",
+                "similarity": 0.246,
+                "resolution": "manual"
+              }
+            ]
+          }
+        },
+        {
+          "rank": 2,
+          "deploy_id": "deploy-3mp7y5",
+          "service": "checkout-service",
+          "summary": "improve cart empty-state illustration",
+          "deployed_by": "marta",
+          "occurred_at": "2026-07-21T14:10:00",
+          "confidence": 0.184,
+          "confidence_breakdown": {
+            "rule_score": 0.368,
+            "rag_score": 0.0,
+            "llm_adjustment": 0.0
+          },
+          "rule_hits": [
+            "time_proximity",
+            "ownership_distance",
+            "blast_radius_weight"
+          ],
+          "evidence": {
+            "time_proximity": {
+              "gap_seconds": 1200.0,
+              "deploy_id": "deploy-3mp7y5"
+            },
+            "ownership_distance": {
+              "hops": 0,
+              "deploy_service": "checkout-service",
+              "alert_service": "checkout-service"
+            },
+            "blast_radius_weight": {
+              "dependent_count": 1,
+              "service": "checkout-service"
+            }
+          }
+        }
+      ],
+      "proposed_remediation": "pr_revert:payments-service:n37p01"
     }
   ]
 }
