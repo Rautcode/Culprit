@@ -1,0 +1,55 @@
+# CI + automated evaluation (build step 10, SPEC_VERSION.md).
+#
+# The pytest job IS the golden-set evaluation: every harness scenario is a
+# ground-truthed incident, and the parametrized suite asserts precision@1
+# = 100% (top candidate == injected cause) plus the full expectation set —
+# confidence floors, rule hits, evidence citations, decoy ordering,
+# timeline chronology — and the LLM layer's guardrail contract. A rule or
+# weight change that flips any ranking fails this gate before merge.
+#
+# Deliberately absent until they have something real to run against:
+# container build/push (needs registries + the Phase 2 service split) and
+# deploy jobs (build step 9 — EKS/ArgoCD). Per-service path filtering
+# arrives with the service split (docs/04-folder-structure.md).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pipeline-eval:
+    name: pipeline tests + golden-set eval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install pytest
+      - name: Regression suite + golden-set evaluation (precision@1 gate)
+        run: python -m pytest services/correlation-engine/tests services/ai-reasoning/tests -v
+      - name: UI data drift check
+        # apps/web/lib/incidents.json must be exactly what the current
+        # pipeline produces — a pipeline change without a regenerated
+        # export means the UI is rendering stale results.
+        run: |
+          python scripts/export_incidents.py
+          git diff --exit-code apps/web/lib/incidents.json
+
+  web-build:
+    name: web build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run build
