@@ -1,1 +1,21 @@
-# Default values for culprit-platform. Not yet implemented.
+web:
+  image:
+    repository: culprit-web
+    tag: dev
+    # kind/local: image side-loaded via `kind load docker-image`; EKS: ECR pull
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 3000
+  resources:
+    # Kyverno guardrails (docs/09-infrastructure.md) require requests/limits.
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  ingress:
+    # Off by default: kind/local uses port-forward; EKS turns this on with
+    # the ALB controller annotations.
+    enabled: false
+    host: app.culprit.dev

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-web
+  labels:
+    app.kubernetes.io/name: culprit-web
+    app.kubernetes.io/part-of: culprit
+spec:
+  selector:
+    app.kubernetes.io/name: culprit-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

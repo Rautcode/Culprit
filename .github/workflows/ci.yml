@@ -53,3 +53,37 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  deploy-verify:
+    # Build step 9, verified end to end on every push: container image ->
+    # kind cluster -> helm install -> readiness -> HTTP through the Service.
+    # EKS/ArgoCD are the same chart + the manifest in infra/k8s/argocd,
+    # pending AWS access; this job is the proof the deployable artifacts
+    # actually deploy.
+    name: container + kind deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build container image
+        run: docker build -t culprit-web:ci apps/web
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: culprit-ci
+      - name: Load image into kind
+        run: kind load docker-image culprit-web:ci --name culprit-ci
+      - name: Lint chart
+        run: helm lint infra/helm/culprit-platform
+      - name: Deploy via Helm and wait for readiness
+        run: >-
+          helm install culprit infra/helm/culprit-platform
+          --set web.image.repository=culprit-web
+          --set web.image.tag=ci
+          --wait --timeout 180s
+      - name: Prove the deployed service serves real incidents
+        run: |
+          kubectl get pods -o wide
+          kubectl port-forward svc/culprit-web 8080:80 &
+          sleep 5
+          curl -fsS http://localhost:8080/incidents | grep -q "Incidents" \
+            && echo "kind-deployed web UI is serving the incident list"

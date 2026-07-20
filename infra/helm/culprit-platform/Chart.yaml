@@ -1,6 +1,9 @@
 apiVersion: v2
 name: culprit-platform
-description: Not yet implemented. See docs/09-infrastructure.md.
+description: >-
+  Culprit's own services. Phase 1 deployable: the web UI (renders real
+  pipeline output baked at image build). The collapsed-monolith pipeline
+  service joins this chart when it grows a serving process (Phase 2).
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "0.1.0"

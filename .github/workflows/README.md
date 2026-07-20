@@ -11,6 +11,11 @@
 - **web-build** — production build of the Next.js app (all incident pages
   prerendered).
 
-Not here yet, deliberately: container build/push and deploy jobs (build
-step 9 — EKS/ArgoCD; needs Docker + cluster access), and per-service path
-filtering (arrives with the Phase 2 service split).
+- **deploy-verify** — build step 9's proof: container image build, kind
+  cluster, `helm install --wait` of `infra/helm/culprit-platform`, then an
+  HTTP check through the Service. EKS/ArgoCD use the same chart + the
+  Application manifest in `infra/k8s/argocd/`, pending AWS access.
+
+Not here yet, deliberately: image push to a registry (needs ECR + AWS
+credentials) and per-service path filtering (arrives with the Phase 2
+service split).

@@ -1,0 +1,29 @@
+# ArgoCD Application for Culprit's own services (build step 9, GitOps half).
+# Apply-ready but not yet applied: requires an ArgoCD install on a real
+# cluster (EKS — blocked on AWS access; see infra/k8s/argocd/README.md).
+# CI never runs kubectl apply — every deploy is a git commit to this repo,
+# which is exactly the deploy-metadata trail Culprit itself consumes
+# (docs/09-infrastructure.md "Delivery").
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: culprit-platform
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Rautcode/Culprit
+    targetRevision: main
+    path: infra/helm/culprit-platform
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: culprit
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
