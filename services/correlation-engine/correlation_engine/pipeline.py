@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from .harness.schema import EvidenceBundle, Scenario
 from .knowledge_graph import KnowledgeGraph
+from .memory import IncidentMemory
 from .ranking.confidence import ConfidenceBreakdown, compute_confidence
 from .ranking.rules import RULES, TOTAL_WEIGHT
 
@@ -44,7 +45,7 @@ def build_timeline(bundle: EvidenceBundle) -> tuple[dict, ...]:
     return tuple(events)
 
 
-def rank_candidates(bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[RCACandidate, ...]:
+def rank_candidates(bundle: EvidenceBundle, graph: KnowledgeGraph, memory: IncidentMemory | None = None) -> tuple[RCACandidate, ...]:
     if not bundle.alerts:
         return ()
 
@@ -59,7 +60,7 @@ def rank_candidates(bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[RCAC
         best_per_rule: dict[str, tuple[float, dict]] = {}
         for alert in bundle.alerts:
             for rule in RULES:
-                score, rule_evidence = rule.evaluate(alert, deploy, bundle, graph)
+                score, rule_evidence = rule.evaluate(alert, deploy, bundle, graph, memory)
                 weighted_sum += score * rule.weight
                 if score > 0 and (rule.name not in best_per_rule or score > best_per_rule[rule.name][0]):
                     best_per_rule[rule.name] = (score, rule_evidence)
@@ -76,7 +77,23 @@ def rank_candidates(bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[RCAC
                 if alert.service == deploy.service or graph.coupling(alert.service, deploy.service) is not None
             )
 
-        confidence = compute_confidence(rule_score=rule_score)
+        # RAG term of the frozen confidence formula: similarity of the
+        # best precedent for (this storm + this candidate's diff). Zero
+        # without memory — the composite's ceiling stays w_rule alone,
+        # which is the mechanical proof confidence can't be claimed
+        # without the evidence layers that justify it.
+        rag_score = 0.0
+        if memory is not None:
+            alerts_text = " ".join(alert.title for alert in bundle.alerts)
+            matches = memory.match(alerts_text, f"{deploy.service} {deploy.diff_summary}")
+            if matches:
+                rag_score = min(1.0, matches[0][0])
+                evidence["similar_past_incidents"] = [
+                    {"incident_id": incident.incident_id, "similarity": round(similarity, 3), "resolution": incident.resolution}
+                    for similarity, incident in matches
+                ]
+
+        confidence = compute_confidence(rule_score=rule_score, rag_score=rag_score)
         candidates.append(
             RCACandidate(
                 deploy_id=deploy.id,
@@ -90,8 +107,8 @@ def rank_candidates(bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[RCAC
     return tuple(sorted(candidates, key=lambda c: c.confidence.composite, reverse=True))
 
 
-def run_scenario(scenario: Scenario) -> RCAResult:
+def run_scenario(scenario: Scenario, memory: IncidentMemory | None = None) -> RCAResult:
     graph = KnowledgeGraph.from_edges(scenario.evidence.service_edges)
-    candidates = rank_candidates(scenario.evidence, graph)
+    candidates = rank_candidates(scenario.evidence, graph, memory)
     timeline = build_timeline(scenario.evidence)
     return RCAResult(candidates=candidates, timeline=timeline)

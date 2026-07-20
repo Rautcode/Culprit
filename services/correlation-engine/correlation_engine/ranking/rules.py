@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from ..harness.schema import AlertEvent, DeployEvent, EvidenceBundle
 from ..knowledge_graph import KnowledgeGraph
 
-RuleFn = Callable[[AlertEvent, DeployEvent, EvidenceBundle, KnowledgeGraph], tuple[float, dict]]
+if TYPE_CHECKING:
+    from ..memory import IncidentMemory
+
+RuleFn = Callable[[AlertEvent, DeployEvent, EvidenceBundle, KnowledgeGraph, "IncidentMemory | None"], tuple[float, dict]]
 
 TIME_WINDOW_SECONDS = 2 * 60 * 60  # matches the +/-2h evidence-gather window in docs/07-ai-architecture.md
 
@@ -65,7 +68,7 @@ def _title_tokens(alert: AlertEvent) -> tuple[str, ...]:
     return tuple(t for t in tokens if len(t) >= 4 and t not in _TOKEN_STOPWORDS)
 
 
-def time_proximity(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
+def time_proximity(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph, memory: "IncidentMemory | None" = None) -> tuple[float, dict]:
     # Fires for the alerting service itself and for anything causally
     # coupled to it — a dependency of the alerter (bad_configmap), or a
     # sibling sharing a resource with it (deadlock). Deploys with no causal
@@ -80,7 +83,7 @@ def time_proximity(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundl
     return score, {"gap_seconds": delta, "deploy_id": deploy.id}
 
 
-def ownership_distance(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
+def ownership_distance(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph, memory: "IncidentMemory | None" = None) -> tuple[float, dict]:
     # Direction matters: causality flows from a dependency to its dependents,
     # so we ask "does the alerting service's depends_on chain reach the
     # deployed service?" (alert.service -> deploy.service) — plus the
@@ -98,7 +101,7 @@ def ownership_distance(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceB
     return score, evidence
 
 
-def diff_keyword_match(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
+def diff_keyword_match(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph, memory: "IncidentMemory | None" = None) -> tuple[float, dict]:
     # Two keyword sources, unioned: class-based signals (infra failure
     # classes like pool/memory/pull) and salient tokens from the alert
     # title itself (domain words like a broken endpoint's name).
@@ -113,15 +116,28 @@ def diff_keyword_match(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceB
     return score, {"matched_keywords": matched, "deploy_id": deploy.id}
 
 
-def historical_pattern_match(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
-    # v1: no RAG store wired up yet (build step 6). Always 0 until then -
-    # see docs/07-ai-architecture.md "RAG (incident memory)". This rule is
-    # defined now so its weight/name exist in confidence breakdowns from
-    # day one, not bolted on later.
-    return 0.0, {}
+def historical_pattern_match(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph, memory: "IncidentMemory | None" = None) -> tuple[float, dict]:
+    # "Have we seen this exact failure shape before?" — cosine similarity of
+    # (current alert + THIS candidate's diff) against resolved-incident
+    # memory. Scoring per candidate is what makes it a ranking signal: the
+    # true culprit's diff resembles the past culprit's diff; a decoy's
+    # doesn't, even under the same alert. Retrieval below SIMILARITY_FLOOR
+    # scores zero — false precedent is worse than no precedent.
+    if memory is None:
+        return 0.0, {}
+    matches = memory.match(alert.title, f"{deploy.service} {deploy.diff_summary}", k=1)
+    if not matches:
+        return 0.0, {}
+    similarity, past = matches[0]
+    return min(1.0, similarity), {
+        "incident_id": past.incident_id,
+        "similarity": round(similarity, 3),
+        "past_root_cause": past.root_cause_summary,
+        "past_resolution": past.resolution,
+    }
 
 
-def blast_radius_weight(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
+def blast_radius_weight(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph, memory: "IncidentMemory | None" = None) -> tuple[float, dict]:
     # Blast radius = how many services DEPEND ON the deployed service (reverse
     # traversal), not how many it depends on. A shared dependency like an auth
     # service — depends on nothing, depended on by everything — is the most
