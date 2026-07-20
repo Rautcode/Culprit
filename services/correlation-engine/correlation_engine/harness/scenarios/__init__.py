@@ -1,5 +1,6 @@
 from ..schema import Scenario
 from . import (
+    alert_storm,
     bad_configmap,
     bad_rollout,
     bad_secret,
@@ -21,6 +22,7 @@ _BUILDERS = (
     bad_rollout.build,
     deadlock.build,
     slow_query.build,
+    alert_storm.build,
 )
 
 ALL_SCENARIOS: tuple[Scenario, ...] = tuple(builder() for builder in _BUILDERS)

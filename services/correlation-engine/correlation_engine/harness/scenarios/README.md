@@ -19,6 +19,7 @@ covered by `tests/test_scenarios.py`'s all-scenarios regression loop.
 | `bad_rollout` | Deployment | hard | [`bad_rollout.py`](bad_rollout.py) — dormant app regression among three same-service deploys; no k8s events; title-token matching |
 | `deadlock` | Database | hard | [`deadlock.py`](deadlock.py) — sibling culprit through a shared database; no depends_on path in either direction |
 | `slow_query` | Database | hard | [`slow_query.py`](slow_query.py) — index-drop migration; sibling decoy fires all four rules and must still lose |
+| `alert_storm` | Observability | hard | [`alert_storm.py`](alert_storm.py) — one root cause, four alerts across the tree; multi-alert aggregation |
 
 ## Backlog — first 10, in build priority order
 
@@ -41,7 +42,7 @@ metrics/broken scraping) are deferred to a Phase 2 catalog, not dropped.
 | 7 | `bad_rollout` | Deployment | done, see above |
 | 8 | `deadlock` | Database | done, see above |
 | 9 | `slow_query` | Database | done, see above |
-| 10 | `alert_storm` | Observability | One root cause fans out into many correlated alerts across dependent services (tests the Knowledge Graph's blast-radius grouping, not just single-alert ranking) |
+| 10 | `alert_storm` | Observability | done, see above — **first 10 complete** |
 
 Each gets a `build()` function following `pool_exhaustion.py`'s pattern:
 one clear culprit, at least one decoy, evidence limited to what a Phase 1

@@ -47,26 +47,41 @@ def build_timeline(bundle: EvidenceBundle) -> tuple[dict, ...]:
 def rank_candidates(bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[RCACandidate, ...]:
     if not bundle.alerts:
         return ()
-    alert = bundle.alerts[0]  # v1: single-alert scenarios only
 
+    # Multi-alert (storm) handling: each deploy is scored against EVERY
+    # alert and aggregated by mean, so a shared-dependency culprit that
+    # correlates consistently across the storm outranks a decoy that only
+    # matches its own service's alert. For a single alert this reduces
+    # exactly to the old per-alert scoring.
     candidates = []
     for deploy in bundle.deploys:
-        hits: list[str] = []
-        evidence: dict = {}
-        weighted_total = 0.0
-        for rule in RULES:
-            score, rule_evidence = rule.evaluate(alert, deploy, bundle, graph)
-            if score > 0:
-                hits.append(rule.name)
-                evidence[rule.name] = rule_evidence
-            weighted_total += score * rule.weight
-        rule_score = min(weighted_total / TOTAL_WEIGHT, 1.0) if TOTAL_WEIGHT else 0.0
+        weighted_sum = 0.0
+        best_per_rule: dict[str, tuple[float, dict]] = {}
+        for alert in bundle.alerts:
+            for rule in RULES:
+                score, rule_evidence = rule.evaluate(alert, deploy, bundle, graph)
+                weighted_sum += score * rule.weight
+                if score > 0 and (rule.name not in best_per_rule or score > best_per_rule[rule.name][0]):
+                    best_per_rule[rule.name] = (score, rule_evidence)
+        rule_score = min(weighted_sum / len(bundle.alerts) / TOTAL_WEIGHT, 1.0) if TOTAL_WEIGHT else 0.0
+
+        hits = tuple(rule.name for rule in RULES if rule.name in best_per_rule)
+        evidence: dict = {name: ev for name, (_, ev) in best_per_rule.items()}
+        if len(bundle.alerts) > 1:
+            # How many of the storm's alerts this deploy is causally coupled
+            # to (same service or graph-coupled) — the storm-grouping signal
+            # the UI/LLM layers cite ("explains 4 of 4 alerts").
+            evidence["alerts_correlated"] = sum(
+                1 for alert in bundle.alerts
+                if alert.service == deploy.service or graph.coupling(alert.service, deploy.service) is not None
+            )
+
         confidence = compute_confidence(rule_score=rule_score)
         candidates.append(
             RCACandidate(
                 deploy_id=deploy.id,
                 rule_score=rule_score,
-                rule_hits=tuple(hits),
+                rule_hits=hits,
                 evidence=evidence,
                 confidence=confidence,
             )
