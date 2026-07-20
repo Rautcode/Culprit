@@ -18,6 +18,7 @@ covered by `tests/test_scenarios.py`'s all-scenarios regression loop.
 | `bad_secret` | Kubernetes | hard | [`bad_secret.py`](bad_secret.py) — two-hop culprit on a shared dependency; graph distance favors the decoy |
 | `bad_rollout` | Deployment | hard | [`bad_rollout.py`](bad_rollout.py) — dormant app regression among three same-service deploys; no k8s events; title-token matching |
 | `deadlock` | Database | hard | [`deadlock.py`](deadlock.py) — sibling culprit through a shared database; no depends_on path in either direction |
+| `slow_query` | Database | hard | [`slow_query.py`](slow_query.py) — index-drop migration; sibling decoy fires all four rules and must still lose |
 
 ## Backlog — first 10, in build priority order
 
@@ -39,7 +40,7 @@ metrics/broken scraping) are deferred to a Phase 2 catalog, not dropped.
 | 6 | `bad_secret` | Kubernetes | done, see above |
 | 7 | `bad_rollout` | Deployment | done, see above |
 | 8 | `deadlock` | Database | done, see above |
-| 9 | `slow_query` | Database | Missing index / query-shape change degrades p99 latency |
+| 9 | `slow_query` | Database | done, see above |
 | 10 | `alert_storm` | Observability | One root cause fans out into many correlated alerts across dependent services (tests the Knowledge Graph's blast-radius grouping, not just single-alert ranking) |
 
 Each gets a `build()` function following `pool_exhaustion.py`'s pattern:

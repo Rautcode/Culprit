@@ -8,6 +8,7 @@ from . import (
     image_pull_backoff,
     oom_killed,
     pool_exhaustion,
+    slow_query,
 )
 
 _BUILDERS = (
@@ -19,6 +20,7 @@ _BUILDERS = (
     bad_secret.build,
     bad_rollout.build,
     deadlock.build,
+    slow_query.build,
 )
 
 ALL_SCENARIOS: tuple[Scenario, ...] = tuple(builder() for builder in _BUILDERS)
