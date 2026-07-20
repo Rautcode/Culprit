@@ -6,6 +6,7 @@ No LLM anywhere in this file — see docs/07-ai-architecture.md "Rule Engine".
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Callable
 
@@ -44,6 +45,26 @@ def _keywords_for(alert_title: str) -> tuple[str, ...]:
     return tuple(hits)
 
 
+# Alert-title words that describe symptoms generically rather than pointing
+# at any particular change — matching them against a diff is noise.
+_TOKEN_STOPWORDS = frozenset({
+    "after", "detected", "error", "errors", "failure", "failures",
+    "high", "rate", "request", "requests", "spike", "spiking",
+})
+
+
+def _title_tokens(alert: AlertEvent) -> tuple[str, ...]:
+    """Salient tokens from the alert title itself, so domain-specific
+    regressions (a broken /cart/discount endpoint) can match a diff that
+    touches discount code — app-level failures are domain-worded, and the
+    class-based _KEYWORD_SIGNALS table can never enumerate them.
+    ponytail: substring token match, no stemming/embeddings — upgrade only
+    if golden-set precision shows this missing real matches."""
+    title = alert.title.lower().replace(alert.service.lower(), " ")
+    tokens = re.split(r"[^a-z0-9]+", title)
+    return tuple(t for t in tokens if len(t) >= 4 and t not in _TOKEN_STOPWORDS)
+
+
 def time_proximity(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
     # Fires for the alerting service itself and for anything its dependency
     # chain reaches — a deploy on a service the alerter depends on is causally
@@ -73,11 +94,14 @@ def ownership_distance(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceB
 
 
 def diff_keyword_match(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
-    keywords = _keywords_for(alert.title)
-    if not keywords:
+    # Two keyword sources, unioned: class-based signals (infra failure
+    # classes like pool/memory/pull) and salient tokens from the alert
+    # title itself (domain words like a broken endpoint's name).
+    candidates = (*_keywords_for(alert.title), *_title_tokens(alert))
+    if not candidates:
         return 0.0, {}
     diff_text = str(deploy.diff_summary).lower()
-    matched = tuple(sorted({kw for kw in keywords if kw in diff_text}))
+    matched = tuple(sorted({kw for kw in candidates if kw in diff_text}))
     if not matched:
         return 0.0, {}
     score = min(1.0, 0.4 * len(matched))

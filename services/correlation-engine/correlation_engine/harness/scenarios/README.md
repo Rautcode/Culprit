@@ -16,6 +16,7 @@ covered by `tests/test_scenarios.py`'s all-scenarios regression loop.
 | `image_pull_backoff` | Kubernetes | medium | [`image_pull_backoff.py`](image_pull_backoff.py) |
 | `bad_configmap` | Kubernetes | hard | [`bad_configmap.py`](bad_configmap.py) — first cross-service culprit (alert fires downstream of the cause) |
 | `bad_secret` | Kubernetes | hard | [`bad_secret.py`](bad_secret.py) — two-hop culprit on a shared dependency; graph distance favors the decoy |
+| `bad_rollout` | Deployment | hard | [`bad_rollout.py`](bad_rollout.py) — dormant app regression among three same-service deploys; no k8s events; title-token matching |
 
 ## Backlog — first 10, in build priority order
 
@@ -35,7 +36,7 @@ metrics/broken scraping) are deferred to a Phase 2 catalog, not dropped.
 | 4 | `image_pull_backoff` | Kubernetes | done, see above |
 | 5 | `bad_configmap` | Kubernetes | done, see above |
 | 6 | `bad_secret` | Kubernetes | done, see above |
-| 7 | `bad_rollout` | Deployment | A rollout introduces a regression across all replicas at once (no canary) |
+| 7 | `bad_rollout` | Deployment | done, see above |
 | 8 | `deadlock` | Database | Schema/query change introduces a lock contention pattern |
 | 9 | `slow_query` | Database | Missing index / query-shape change degrades p99 latency |
 | 10 | `alert_storm` | Observability | One root cause fans out into many correlated alerts across dependent services (tests the Knowledge Graph's blast-radius grouping, not just single-alert ranking) |
