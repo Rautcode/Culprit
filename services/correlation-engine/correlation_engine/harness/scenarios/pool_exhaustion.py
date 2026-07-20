@@ -75,6 +75,7 @@ def build() -> Scenario:
         occurred_at=culprit_deploy.occurred_at,
     )
     edges = (
+        ServiceEdge("web-frontend", "checkout-service", "depends_on"),
         ServiceEdge("checkout-service", "payments-service", "depends_on"),
         ServiceEdge("checkout-service", "inventory-service", "depends_on"),
     )

@@ -93,11 +93,15 @@ def historical_pattern_match(alert: AlertEvent, deploy: DeployEvent, bundle: Evi
 
 
 def blast_radius_weight(alert: AlertEvent, deploy: DeployEvent, bundle: EvidenceBundle, graph: KnowledgeGraph) -> tuple[float, dict]:
-    count = graph.downstream_count(deploy.service)
+    # Blast radius = how many services DEPEND ON the deployed service (reverse
+    # traversal), not how many it depends on. A shared dependency like an auth
+    # service — depends on nothing, depended on by everything — is the most
+    # likely systemic culprit and must score highest here, not zero.
+    count = graph.dependent_count(deploy.service)
     if count == 0:
         return 0.0, {}
     score = min(1.0, count / 10)
-    return score, {"downstream_count": count, "service": deploy.service}
+    return score, {"dependent_count": count, "service": deploy.service}
 
 
 @dataclass(frozen=True)
