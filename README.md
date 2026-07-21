@@ -34,7 +34,7 @@ credentials, not code. CI runs on every push (see `.github/workflows/ci.yml`).
 | 9 | Kubernetes Deployment | 🟡 container + Helm chart kind-verified in CI; EKS/ECR/OIDC Terraform written + CI-validated, `apply` pending AWS credentials |
 | 10 | CI + automated evaluation | ✅ regression suite = golden-set eval, precision@1 gate, per-layer + per-rule metrics report |
 
-**46 tests green** (plus a Postgres/pgvector suite that runs against a real
+**50 tests green** (plus a Postgres/pgvector suite that runs against a real
 database in CI). The regression suite doubles as the golden-set
 evaluation: every scenario is a ground-truthed incident, and CI gates
 precision@1 = 100% (top candidate == injected cause) plus the full
@@ -49,9 +49,11 @@ persistent incident memory), and the web UI all run and are tested. The
 golden-set evaluation (`culprit eval`) publishes per-layer and per-rule
 precision into every CI run's summary — including an honest authored-bias
 flag when a single rule matches the composite on simulated data. Still
-credential-gated, not claimed: the production LLM client (AnthropicModel)
-and semantic embedder (VoyageEmbedder) are contract-pinned by
-deterministic stand-ins but not exercised against live APIs; the
+credential-gated, not claimed: `culprit diagnose --explain` wires the
+LLM layer into the CLI behind the grounding guardrail (CI-tested with a
+scripted model), but the production client (AnthropicModel) and semantic
+embedder (VoyageEmbedder) are pinned by deterministic stand-ins, not
+exercised against live APIs; the
 EKS/Terraform/ArgoCD cloud deployment is kind-verified but not applied to
 a real cluster. No design-partner usage or real-incident precision numbers
 exist yet — those are Phase 1 exit criteria, see
@@ -74,7 +76,9 @@ python -m correlation_engine.cli demo deadlock
 
 `culprit diagnose` runs the same pipeline on your own exported evidence
 (`kubectl get events -o json` + a deploys JSON) — no agent, no credentials,
-offline. See `python -m correlation_engine.cli diagnose --help`.
+offline. `--explain` adds an LLM narrative on top (needs ANTHROPIC_API_KEY
++ the ai-reasoning package; the verdict itself is unchanged). See
+`python -m correlation_engine.cli diagnose --help`.
 
 Pipeline tests + golden-set evaluation:
 

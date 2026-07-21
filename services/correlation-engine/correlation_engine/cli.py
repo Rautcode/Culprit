@@ -15,7 +15,9 @@ Two commands, two audiences:
             Phase 1 Collector's job, not this CLI's. With --memory-dsn,
             verdicts include precedent from persistent incident memory
             (lexical by default; --memory-backend pgvector for SQL cosine
-            retrieval via embeddings.py).
+            retrieval via embeddings.py). With --explain, an LLM narrates
+            the verdict on top of the deterministic evidence — bounded by
+            the grounding guardrail; the verdict itself is unchanged.
 
   eval      Print the golden-set evaluation report (SPEC_VERSION.md
             v1.0 Evaluation Metrics): per-layer precision with the
@@ -181,7 +183,65 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
         print("to activate it. Confidence is rule-evidence only, by design.")
     else:
         print(f"\nIncident memory: {args.memory_backend} backend, {len(memory)} resolved incident(s).")
+
+    if getattr(args, "explain", False):
+        _explain_and_print(result)
     return 0
+
+
+def _default_explainer_model():
+    """The production explainer model, or None if unavailable. Kept as a
+    seam so tests inject a ScriptedModel by monkeypatching this name."""
+    import os
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("\n[--explain] set ANTHROPIC_API_KEY to enable LLM explanations; "
+              "showing the deterministic verdict only.", file=sys.stderr)
+        return None
+    from ai_reasoning.model import AnthropicModel
+
+    return AnthropicModel()
+
+
+def _explain_and_print(result: RCAResult) -> None:
+    """Lazily invoke the LLM explanation layer on top of the finished
+    deterministic verdict. Every failure path degrades to nothing printed:
+    the deterministic answer stands alone — that is the architecture, not a
+    fallback (docs/07-ai-architecture.md). ai_reasoning imports FROM
+    correlation_engine, so this import stays lazy to avoid a package cycle
+    and to keep the credential-free CLI free of the dependency."""
+    try:
+        from ai_reasoning.explain import explain
+    except ImportError:
+        print("\n[--explain] the ai-reasoning package isn't importable "
+              "(install services/ai-reasoning); deterministic verdict stands.",
+              file=sys.stderr)
+        return
+
+    model = _default_explainer_model()
+    if model is None:
+        return
+
+    explanation = explain(result, model)
+    if explanation is None:
+        return
+
+    print("\n=== AI EXPLANATION (grounded in the evidence above) ===")
+    print(explanation.narrative)
+    if explanation.confidence is not None:
+        print(
+            f"\ncalibrated confidence for {explanation.top_candidate_id}: "
+            f"{explanation.confidence.composite:.0%} "
+            f"(LLM adjustment {explanation.confidence.llm_adjustment:+.0%}, bounded to +/-15%)"
+        )
+    if explanation.citations:
+        print(f"cited evidence: {', '.join(explanation.citations)}")
+    if explanation.stripped_citations:
+        print("guardrail stripped ungrounded citations: "
+              f"{', '.join(explanation.stripped_citations)}")
+    if not explanation.grounded:
+        print("(explanation not fully grounded — confidence NOT boosted; "
+              "the deterministic verdict is authoritative)")
 
 
 def _open_memory(args):
@@ -287,6 +347,10 @@ def main(argv: list[str] | None = None) -> int:
                       help="output of `kubectl get events -o json` (or a bare list of Event objects)")
     diag.add_argument("--edges-file",
                       help="JSON list: {from, to, type?} service-dependency edges")
+    diag.add_argument("--explain", action="store_true",
+                      help="add an LLM explanation on top of the verdict "
+                           "(needs ANTHROPIC_API_KEY + the ai-reasoning package; "
+                           "the deterministic verdict is unaffected)")
     _add_memory_args(diag)
     diag.set_defaults(func=cmd_diagnose)
 

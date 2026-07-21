@@ -121,24 +121,29 @@ no embeddings endpoint; Voyage is the recommended partner).
 
 ---
 
-## Tier 3 — Live LLM explanations (Anthropic) 🔑 + small wiring task
+## Tier 3 — Live LLM explanations (Anthropic) 🔑
 
 Unlocks: prose "why this is the cause" on top of the deterministic verdict.
+The wiring is done — `culprit diagnose --explain` calls `ai_reasoning.explain`
+behind the grounding guardrail (CI-tested via a scripted model; it degrades
+cleanly to the deterministic verdict when the package or key is absent).
+Only the key remains.
 
-Two parts, stated honestly:
-1. 🔑 an `ANTHROPIC_API_KEY` (the production `AnthropicModel` defaults to
-   `claude-opus-4-8`).
-2. ☐ a **wiring task**: `ai_reasoning.explain` is built and contract-tested
-   with a scripted stub, but the CLI/API surface does not call it yet.
-   Connecting `explain(result, AnthropicModel())` into `cmd_diagnose`'s
-   output is a small, well-scoped change — the grounding guardrail and the
-   ±0.15 confidence bound already enforce that the model can't invent.
+Credential: an `ANTHROPIC_API_KEY` (the production `AnthropicModel`
+defaults to `claude-opus-4-8`).
 
-- [ ] Set `ANTHROPIC_API_KEY`.
-- [ ] Wire `ai_reasoning.explain` into the diagnose path (and/or the future
-  REST API), keeping the evidence-grounding guardrail on.
-- [ ] Verify a real explanation cites only real evidence refs (the
-  `test_explain.py` contract, now against a live model).
+- [ ] Install the LLM layer alongside the CLI so `--explain` can import it:
+  ```
+  pip install -e services/correlation-engine -e services/ai-reasoning
+  ```
+- [ ] Set `ANTHROPIC_API_KEY`, then:
+  ```
+  culprit diagnose --explain --alert-title "..." --alert-service ... \
+    --fired-at ... --deploys-file ...
+  ```
+  Verify: an `AI EXPLANATION` section appears; any citation the model
+  invents is stripped and flagged, and confidence stays within ±15% of the
+  deterministic value (the guardrail, visible in the output).
 
 ---
 
