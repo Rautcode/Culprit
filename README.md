@@ -25,6 +25,17 @@ only *explains* on top, bounded so it provably cannot invent a conclusion.
 The system gives a correct, evidence-backed answer even with the LLM
 switched off entirely. → [the case study](CASE-STUDY.md) for the full story.
 
+**Why not Grafana / Jaeger / PagerDuty / OpenSearch?** Culprit doesn't
+replace them — it's an AI-first *investigation* layer that sits on top.
+Grafana shows you the metrics, Jaeger the traces, PagerDuty the page;
+none of them answer *"which of today's changes caused this?"* across git,
+Helm, Terraform, and Kubernetes at once. Culprit consumes those systems'
+data (Prometheus/Loki alerts, deploy events, IaC changes) and produces the
+one thing they don't: a ranked, evidence-cited causal verdict. It's a
+complement, not a competitor — the design deliberately integrates with the
+observability stack rather than rebuilding it (see the non-goals in
+[docs/00-INDEX.md](docs/00-INDEX.md)).
+
 ## Architecture
 
 The built core loop — every step before the LLM is pure, deterministic,
@@ -228,6 +239,14 @@ shell. The repo says so everywhere rather than implying completeness.
 
 See [docs/04-folder-structure.md](docs/04-folder-structure.md) for the full
 layout and the reasoning behind it.
+
+## Contributing
+
+Contributions welcome — [CONTRIBUTING.md](CONTRIBUTING.md) gets you running
+in two minutes and explains the one workflow rule (the spec is frozen;
+changes to frozen decisions go through an ADR). The most valuable and
+approachable entry point is **adding a harness scenario**. See also the
+[Code of Conduct](CODE_OF_CONDUCT.md) and [Security Policy](SECURITY.md).
 
 ## License
 
