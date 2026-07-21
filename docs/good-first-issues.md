@@ -6,9 +6,36 @@ GitHub's **New Issue** form: the heading is the title, the labels line is
 what to apply, and the body follows. Delete this file once the issues are
 created, or keep it as a public backlog — your call.
 
-Suggested labels to create first (Issues → Labels):
-`good first issue` · `help wanted` · `documentation` · `enhancement` ·
-`bug` · `testing` · `scenario`
+## Labels to create first
+
+GitHub's **Issues → Labels → New label** form takes name, description, and
+color separately — copy each column. (`good first issue`, `help wanted`,
+`documentation`, `enhancement`, and `bug` are GitHub defaults you may
+already have.)
+
+| Name | Color | Description |
+|---|---|---|
+| `good first issue` | `#7057ff` | Good for newcomers |
+| `help wanted` | `#008672` | Extra attention is welcomed |
+| `enhancement` | `#a2eeef` | New feature or request |
+| `bug` | `#d73a4a` | Something isn't working |
+| `documentation` | `#0075ca` | Improvements or additions to documentation |
+| `testing` | `#fbca04` | Adds or improves test coverage |
+| `scenario` | `#5319e7` | Adds or changes an incident simulation harness scenario |
+
+**Fast path** — if you install the GitHub CLI (`gh`), paste this instead:
+
+```bash
+gh label create "good first issue" -c 7057ff -d "Good for newcomers" -f
+gh label create "help wanted"      -c 008672 -d "Extra attention is welcomed" -f
+gh label create "enhancement"      -c a2eeef -d "New feature or request" -f
+gh label create "bug"              -c d73a4a -d "Something isn't working" -f
+gh label create "documentation"    -c 0075ca -d "Improvements or additions to documentation" -f
+gh label create "testing"          -c fbca04 -d "Adds or improves test coverage" -f
+gh label create "scenario"         -c 5319e7 -d "Adds or changes an incident simulation harness scenario" -f
+```
+
+(`-f` updates the label if it already exists, so this is safe to re-run.)
 
 ---
 
