@@ -23,7 +23,15 @@ already have.)
 | `testing` | `#fbca04` | Adds or improves test coverage |
 | `scenario` | `#5319e7` | Adds or changes an incident simulation harness scenario |
 
-**Fast path** — if you install the GitHub CLI (`gh`), paste this instead:
+**One-shot:** with the GitHub CLI installed and authenticated (`gh auth
+login`), [`scripts/seed-issues.sh`](../scripts/seed-issues.sh) creates all
+the labels **and** the 11 issues below in a single run:
+
+```bash
+bash scripts/seed-issues.sh
+```
+
+**Labels only** — if you install `gh` and just want the labels:
 
 ```bash
 gh label create "good first issue" -c 7057ff -d "Good for newcomers" -f
