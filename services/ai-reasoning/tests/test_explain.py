@@ -88,3 +88,20 @@ def test_no_candidates_short_circuits_without_model_call():
     model = _scripted("anything", 0.0, [])
     assert explain(RCAResult(candidates=(), timeline=()), model) is None
     assert model.calls == []
+
+
+class _RaisingModel:
+    """A model whose API call fails — network down, rate limit, expired key
+    that passed the env check. The contract is that this degrades, not crashes."""
+    def complete(self, system: str, prompt: str) -> str:
+        raise RuntimeError("connection reset by peer")
+
+
+def test_model_call_failure_degrades_to_deterministic_fallback():
+    result = run_scenario(get("pool_exhaustion"))
+    explanation = explain(result, _RaisingModel())          # must not raise
+    assert explanation is not None
+    assert not explanation.grounded
+    assert explanation.top_candidate_id == result.top_candidate.deploy_id
+    assert explanation.confidence.composite == result.top_candidate.confidence.composite
+    assert "model call failed" in explanation.narrative

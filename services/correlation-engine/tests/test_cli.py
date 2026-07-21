@@ -7,6 +7,8 @@ files on disk shaped like what a design partner would actually export
 """
 import json
 
+import pytest
+
 from correlation_engine.cli import main
 
 
@@ -72,3 +74,28 @@ def test_diagnose_from_partner_shaped_files(tmp_path, capsys):
     assert "bbb222" in first_candidate
     assert "diff_keyword_match" in first_candidate
     assert "PoolExhausted" in out                      # k8s events made the timeline
+
+
+def test_diagnose_missing_field_fails_cleanly(tmp_path):
+    (tmp_path / "deploys.json").write_text(
+        json.dumps([{"occurred_at": "2026-07-22T09:00:00Z"}]), encoding="utf-8")  # no 'service'
+    with pytest.raises(SystemExit) as exc:
+        main(["diagnose", "--alert-title", "x", "--alert-service", "checkout-service",
+              "--fired-at", "2026-07-22T09:00:00Z", "--deploys-file", str(tmp_path / "deploys.json")])
+    assert "input error" in str(exc.value) and "service" in str(exc.value)
+
+
+def test_diagnose_bad_timestamp_fails_cleanly(tmp_path):
+    (tmp_path / "deploys.json").write_text(
+        json.dumps([{"service": "checkout-service", "occurred_at": "not-a-date"}]), encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        main(["diagnose", "--alert-title", "x", "--alert-service", "checkout-service",
+              "--fired-at", "2026-07-22T09:00:00Z", "--deploys-file", str(tmp_path / "deploys.json")])
+    assert "ISO-8601" in str(exc.value)
+
+
+def test_diagnose_missing_file_fails_cleanly():
+    with pytest.raises(SystemExit) as exc:
+        main(["diagnose", "--alert-title", "x", "--alert-service", "s",
+              "--fired-at", "2026-07-22T09:00:00Z", "--deploys-file", "/no/such/file.json"])
+    assert "file not found" in str(exc.value)

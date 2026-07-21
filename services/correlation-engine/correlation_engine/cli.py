@@ -131,12 +131,31 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
 
 def _load_json(path: str):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    # Clean errors at the trust boundary: `diagnose` runs on files a design
+    # partner exported, so a missing/garbled file must say so plainly, not
+    # traceback.
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise SystemExit(f"input error: file not found: {path}")
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"input error: {path} is not valid JSON ({exc})")
+
+
+def _parse_ts(value: str, what: str) -> datetime:
+    try:
+        return _ts(value)
+    except (ValueError, TypeError):
+        raise SystemExit(f"input error: {what} is not an ISO-8601 timestamp: {value!r}")
 
 
 def cmd_diagnose(args: argparse.Namespace) -> int:
     deploys: list[DeployEvent] = []
     for i, item in enumerate(_load_json(args.deploys_file)):
+        if not isinstance(item, dict) or "service" not in item or "occurred_at" not in item:
+            raise SystemExit(
+                f"input error: {args.deploys_file} entry {i}: each deploy needs "
+                "'service' and 'occurred_at'")
         deploys.append(DeployEvent(
             id=item.get("id") or item.get("sha") or f"deploy-{i}",
             service=item["service"],
@@ -144,28 +163,34 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
             git_sha=item.get("sha"),
             diff_summary={"summary": item.get("summary", ""), "files_changed": item.get("files_changed", [])},
             deployed_by=item.get("deployed_by", "unknown"),
-            occurred_at=_ts(item["occurred_at"]),
+            occurred_at=_parse_ts(item["occurred_at"], f"{args.deploys_file} entry {i} 'occurred_at'"),
         ))
 
     k8s_events = ()
     if args.events_file:
         raw = _load_json(args.events_file)
         items = raw.get("items", raw) if isinstance(raw, dict) else raw
-        k8s_events = tuple(parse_k8s_event(item) for item in items)
+        try:
+            k8s_events = tuple(parse_k8s_event(item) for item in items)
+        except (KeyError, ValueError, TypeError) as exc:
+            raise SystemExit(f"input error: {args.events_file} — malformed Kubernetes event ({exc})")
 
     edges = ()
     if args.edges_file:
-        edges = tuple(
-            ServiceEdge(item["from"], item["to"], item.get("type", "depends_on"))
-            for item in _load_json(args.edges_file)
-        )
+        parsed_edges = []
+        for j, item in enumerate(_load_json(args.edges_file)):
+            if not isinstance(item, dict) or "from" not in item or "to" not in item:
+                raise SystemExit(
+                    f"input error: {args.edges_file} entry {j}: each edge needs 'from' and 'to'")
+            parsed_edges.append(ServiceEdge(item["from"], item["to"], item.get("type", "depends_on")))
+        edges = tuple(parsed_edges)
 
     alert = AlertEvent(
         id="alert-cli-1",
         service=args.alert_service,
         title=args.alert_title,
         severity=args.severity,
-        fired_at=_ts(args.fired_at),
+        fired_at=_parse_ts(args.fired_at, "--fired-at"),
     )
 
     bundle = EvidenceBundle(

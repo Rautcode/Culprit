@@ -106,7 +106,14 @@ def explain(result: RCAResult, model) -> Explanation | None:
     if not result.candidates:
         return None  # nothing to explain; no model call
 
-    raw = model.complete(SYSTEM_PROMPT, build_prompt(result))
+    # Broad catch is deliberate: the contract is that ANY model failure —
+    # network, timeout, rate limit, auth, refusal — degrades to the
+    # deterministic verdict rather than crashing the caller (the "the
+    # deterministic answer stands alone" principle, docs/07).
+    try:
+        raw = model.complete(SYSTEM_PROMPT, build_prompt(result))
+    except Exception as exc:  # noqa: BLE001 — see comment above
+        return _fallback(result, f"model call failed ({type(exc).__name__})")
     try:
         parsed = json.loads(raw)
         narrative = str(parsed["explanation"])
