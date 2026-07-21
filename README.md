@@ -30,10 +30,11 @@ credentials, not code. CI runs on every push (see `.github/workflows/ci.yml`).
 | 6 | RAG Retrieval | ✅ incident memory, two-sided precedent |
 | 7 | LLM Explanation Layer | ✅ bounded reasoning behind the grounding guardrail |
 | 8 | Web UI | ✅ Incident List + Detail on real pipeline output |
-| 9 | Kubernetes Deployment | 🟡 container + Helm chart kind-verified in CI; EKS/ArgoCD pending AWS access |
-| 10 | CI + automated evaluation | ✅ regression suite = golden-set eval, precision@1 gate |
+| 9 | Kubernetes Deployment | 🟡 container + Helm chart kind-verified in CI; EKS/ECR/OIDC Terraform written + CI-validated, `apply` pending AWS credentials |
+| 10 | CI + automated evaluation | ✅ regression suite = golden-set eval, precision@1 gate, per-layer + per-rule metrics report |
 
-**35 tests green.** The regression suite doubles as the golden-set
+**46 tests green** (plus a Postgres/pgvector suite that runs against a real
+database in CI). The regression suite doubles as the golden-set
 evaluation: every scenario is a ground-truthed incident, and CI gates
 precision@1 = 100% (top candidate == injected cause) plus the full
 expectation set — confidence floors, rule hits, evidence citations, decoy

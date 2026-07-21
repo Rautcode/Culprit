@@ -92,6 +92,25 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  terraform-validate:
+    # Keeps the EKS config (infra/terraform) from rotting without needing
+    # AWS credentials — fmt + validate only, no plan, no apply. Applying is
+    # a deliberate operator action (see the environment's README).
+    name: terraform fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.3
+      - name: fmt
+        run: terraform fmt -check -recursive infra/terraform
+      - name: validate (dev)
+        working-directory: infra/terraform/environments/dev
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
   deploy-verify:
     # Build step 9, verified end to end on every push: container image ->
     # kind cluster -> helm install -> readiness -> HTTP through the Service.

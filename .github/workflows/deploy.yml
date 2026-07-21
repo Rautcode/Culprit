@@ -1,0 +1,90 @@
+# Deploy to EKS — the cloud half of build step 9 (docs/09-infrastructure.md).
+#
+# Inert until AWS is provisioned: every job is gated on the AWS_ROLE_ARN
+# repository variable, which is an OUTPUT of `terraform apply` in
+# infra/terraform/environments/dev (github_deploy_role_arn). Until that
+# variable is set, this workflow skips cleanly — no red X on a repo whose
+# owner hasn't stood up a cluster yet.
+#
+# Keyless: authenticates via GitHub OIDC -> the IAM role Terraform created,
+# whose trust policy is pinned to this repo. No long-lived AWS keys in
+# repo secrets, ever.
+#
+# GitOps note: this pushes the image and bumps the Helm image tag. On a
+# cluster with ArgoCD installed, prefer committing the tag bump to git and
+# letting ArgoCD sync (infra/k8s/argocd/) — the direct `helm upgrade` here
+# is the bootstrap path before ArgoCD exists.
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm a real deploy to the dev cluster'
+        required: true
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "infra/helm/**"
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # OIDC
+  contents: read
+
+jobs:
+  deploy:
+    name: build → ECR → EKS
+    runs-on: ubuntu-latest
+    # Gate: no role configured (no cluster) => skip; manual runs require the
+    # typed confirmation so a stray dispatch can't ship.
+    if: >-
+      vars.AWS_ROLE_ARN != '' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.confirm == 'deploy')
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'culprit-dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          IMAGE="$REGISTRY/culprit-web:${GITHUB_SHA::12}"
+          docker build -t "$IMAGE" apps/web
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "REPO=$REGISTRY/culprit-web" >> "$GITHUB_ENV"
+          echo "TAG=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+
+      - name: Configure kubectl for the cluster
+        run: aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Helm upgrade
+        run: |
+          helm upgrade --install culprit infra/helm/culprit-platform \
+            --namespace culprit --create-namespace \
+            --set web.image.repository="$REPO" \
+            --set web.image.tag="$TAG" \
+            --set web.image.pullPolicy=Always \
+            --wait --timeout 300s
+
+      - name: Report rollout
+        run: |
+          kubectl -n culprit get deploy,svc,pods -o wide
+          echo "Deployed $IMAGE to $CLUSTER_NAME" >> "$GITHUB_STEP_SUMMARY"
