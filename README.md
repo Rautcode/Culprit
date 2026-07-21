@@ -124,6 +124,33 @@ python -m correlation_engine.cli demo list
 python -m correlation_engine.cli demo deadlock
 ```
 
+Real output (a deadlock whose culprit is in a *different* service, coupled
+only through a shared database — the case naive time-ordering gets wrong):
+
+```text
+ALERT [high] orders-service: database deadlock errors spiking
+
+=== ROOT CAUSE CANDIDATES ===
+>> #1  deploy-dead10  (billing-service, by grace)
+     add invoice reconciliation job that batch-updates orders table in a transaction
+     confidence 19%  (rules 39% · history 0% · llm +0%)
+       - time_proximity: {"gap_seconds": 240.0}
+       - ownership_distance: {"hops": 2, "shared_dependency": "orders-db"}
+       - diff_keyword_match: {"matched_keywords": ["transaction"]}
+       - blast_radius_weight: {"dependent_count": 1}
+
+   #2  deploy-0rd3r5  (orders-service, by felix)   ← same-service decoy, ranked below
+     improve order search pagination
+     confidence 16%  (rules 32% · history 0% · llm +0%)
+
+GROUND TRUTH: deploy-dead10 — pipeline verdict is correct.
+```
+
+Every line of evidence is a named rule with its inputs; the confidence
+decomposes into `rules · history · LLM`. With a seeded memory store
+(`culprit learn`), the `history` term lights up and a recurrence cites the
+past incident and the fix that resolved it.
+
 `culprit diagnose` runs the same pipeline on your own exported evidence
 (`kubectl get events -o json` + a deploys JSON) — no agent, no credentials,
 offline. `--explain` adds an LLM narrative on top (needs ANTHROPIC_API_KEY
