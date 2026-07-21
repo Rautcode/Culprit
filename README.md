@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Rautcode/Culprit/actions/workflows/ci.yml/badge.svg)](https://github.com/Rautcode/Culprit/actions/workflows/ci.yml)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)
-![tests 62 passing](https://img.shields.io/badge/tests-62%20passing-brightgreen)
+![tests 69 passing](https://img.shields.io/badge/tests-69%20passing-brightgreen)
 ![precision@1 100%](https://img.shields.io/badge/golden--set%20precision%401-100%25-brightgreen)
 ![License MIT](https://img.shields.io/badge/license-MIT-blue)
 
@@ -84,8 +84,8 @@ credentials, not code. CI runs on every push (see `.github/workflows/ci.yml`).
 | 9 | Kubernetes Deployment | 🟡 container + Helm chart kind-verified in CI; EKS/ECR/OIDC Terraform written + CI-validated, `apply` pending AWS credentials |
 | 10 | CI + automated evaluation | ✅ regression suite = golden-set eval, precision@1 gate, per-layer + per-rule metrics report |
 
-**50 tests green** (plus a Postgres/pgvector suite that runs against a real
-database in CI). The regression suite doubles as the golden-set
+**55 tests green** locally, plus a 14-test Postgres/pgvector suite that runs
+against a real database in CI — 69 in total. The regression suite doubles as the golden-set
 evaluation: every scenario is a ground-truthed incident, and CI gates
 precision@1 = 100% (top candidate == injected cause) plus the full
 expectation set — confidence floors, rule hits, evidence citations, decoy
