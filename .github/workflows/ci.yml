@@ -13,6 +13,9 @@
 # arrives with the service split (docs/04-folder-structure.md).
 name: ci
 
+permissions:
+  contents: write   # lets the failure step post the log as a commit comment
+
 on:
   push:
     branches: [main]
@@ -48,7 +51,17 @@ jobs:
           python-version: "3.13"
       - run: pip install pytest "psycopg[binary]>=3.1"
       - name: Regression suite + golden-set evaluation (precision@1 gate)
-        run: python -m pytest services/correlation-engine/tests services/ai-reasoning/tests -v
+        run: python -m pytest services/correlation-engine/tests services/ai-reasoning/tests -v 2>&1 | tee pytest.log
+      - name: Publish failure log as commit comment
+        # This environment drives CI via the public API without auth, so a
+        # failing run must surface its own diagnostics somewhere readable:
+        # commit comments are public; the workflow token can write them.
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf 'CI pipeline-eval failed. pytest log tail:\n\n```\n%s\n```\n' "$(tail -c 55000 pytest.log)" > comment.md
+          gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -F body=@comment.md || true
       - name: UI data drift check
         # apps/web/lib/incidents.json must be exactly what the current
         # pipeline produces — a pipeline change without a regenerated
