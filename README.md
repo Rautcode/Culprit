@@ -80,6 +80,22 @@ offline. `--explain` adds an LLM narrative on top (needs ANTHROPIC_API_KEY
 + the ai-reasoning package; the verdict itself is unchanged). See
 `python -m correlation_engine.cli diagnose --help`.
 
+Golden-set evaluation — per-layer and per-rule precision (the same report
+CI publishes into every run's summary):
+
+```
+python -m correlation_engine.cli eval
+```
+
+With a Postgres DSN, `eval` also compares the lexical vs pgvector memory
+backends on the golden set — the data behind the "adopt embeddings only if
+they win" gate. It runs isolated and rolls back, so recorded incidents are
+never touched:
+
+```
+culprit eval --memory-dsn postgresql://culprit:culprit@localhost:5432/culprit
+```
+
 Pipeline tests + golden-set evaluation:
 
 ```
