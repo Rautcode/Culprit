@@ -56,7 +56,9 @@ jobs:
         # This environment drives CI via the public API without auth, so a
         # failing run must surface its own diagnostics somewhere readable:
         # commit comments are public; the workflow token can write them.
-        if: failure()
+        # Push only: fork-PR tokens are read-only (the post would no-op),
+        # and commenting on contributors' PR commits is noise.
+        if: failure() && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -38,6 +38,7 @@ or `culprit ...` after `pip install -e services/correlation-engine`.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -202,21 +203,22 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
         deploys=tuple(deploys), alerts=(alert,), k8s_events=k8s_events, service_edges=edges,
     )
     graph = KnowledgeGraph.from_edges(bundle.service_edges)
-    memory = _open_memory(args)
-    result = RCAResult(
-        candidates=rank_candidates(bundle, graph, memory),
-        timeline=build_timeline(bundle),
-    )
+    with _open_memory(args) as memory:
+        result = RCAResult(
+            candidates=rank_candidates(bundle, graph, memory),
+            timeline=build_timeline(bundle),
+        )
+        print(f"ALERT [{alert.severity}] {alert.title}  (service: {alert.service})")
+        _print_result(result, {d.id: d for d in deploys})
+        if memory is None:
+            print("\nNote: running without incident memory — precedent scoring is off.")
+            print("Pass --memory-dsn (and record confirmed incidents with `culprit learn`)")
+            print("to activate it. Confidence is rule-evidence only, by design.")
+        else:
+            print(f"\nIncident memory: {args.memory_backend} backend, {len(memory)} resolved incident(s).")
 
-    print(f"ALERT [{alert.severity}] {alert.title}  (service: {alert.service})")
-    _print_result(result, {d.id: d for d in deploys})
-    if memory is None:
-        print("\nNote: running without incident memory — precedent scoring is off.")
-        print("Pass --memory-dsn (and record confirmed incidents with `culprit learn`)")
-        print("to activate it. Confidence is rule-evidence only, by design.")
-    else:
-        print(f"\nIncident memory: {args.memory_backend} backend, {len(memory)} resolved incident(s).")
-
+    # LLM explanation runs after the DB connection is released — the model
+    # call is the slow part, and it needs the finished result, not memory.
     if getattr(args, "explain", False):
         _explain_and_print(result)
     return 0
@@ -277,20 +279,29 @@ def _explain_and_print(result: RCAResult) -> None:
               "the deterministic verdict is authoritative)")
 
 
+@contextlib.contextmanager
 def _open_memory(args):
-    """Persistent memory, or None. psycopg loads lazily so the
-    credential-free demo/diagnose path stays dependency-free."""
+    """Persistent memory (or None), as a context manager so the DB
+    connection is closed deterministically on exit. The CLI is short-lived,
+    but a leaked handle is a leaked handle — and this exact code moves into
+    the long-lived Phase 2 service, where it would matter. psycopg loads
+    lazily so the credential-free demo/diagnose path stays dependency-free."""
     if not getattr(args, "memory_dsn", None):
-        return None
+        yield None
+        return
     import psycopg
 
     from .db.postgres import PgVectorIncidentMemory, PostgresIncidentMemory, apply_schema
 
     conn = psycopg.connect(args.memory_dsn, autocommit=True)
-    apply_schema(conn)
-    if args.memory_backend == "pgvector":
-        return PgVectorIncidentMemory(conn, _build_embedder(args.embedder))
-    return PostgresIncidentMemory(conn)
+    try:
+        apply_schema(conn)
+        if args.memory_backend == "pgvector":
+            yield PgVectorIncidentMemory(conn, _build_embedder(args.embedder))
+        else:
+            yield PostgresIncidentMemory(conn)
+    finally:
+        conn.close()
 
 
 def _build_embedder(kind: str):
@@ -307,41 +318,41 @@ def _build_embedder(kind: str):
 
 
 def cmd_learn(args: argparse.Namespace) -> int:
-    memory = _open_memory(args)
-    if memory is None:
-        print("learn requires --memory-dsn (there is nowhere else to persist).", file=sys.stderr)
-        return 2
+    with _open_memory(args) as memory:
+        if memory is None:
+            print("learn requires --memory-dsn (there is nowhere else to persist).", file=sys.stderr)
+            return 2
 
-    if args.from_scenario:
-        ids = (
-            [s.id for s in ALL_SCENARIOS]
-            if args.from_scenario == "all"
-            else [args.from_scenario]
-        )
-        for sid in ids:
-            memory.learn_from_scenario(get(sid))
-        print(f"learned {len(ids)} incident(s); memory now holds {len(memory)}.")
+        if args.from_scenario:
+            ids = (
+                [s.id for s in ALL_SCENARIOS]
+                if args.from_scenario == "all"
+                else [args.from_scenario]
+            )
+            for sid in ids:
+                memory.learn_from_scenario(get(sid))
+            print(f"learned {len(ids)} incident(s); memory now holds {len(memory)}.")
+            return 0
+
+        required = (args.incident_id, args.title, args.culprit_service, args.root_cause, args.resolution)
+        if not all(required):
+            print(
+                "learn needs either --from-scenario, or all of --incident-id "
+                "--title --culprit-service --root-cause --resolution.",
+                file=sys.stderr,
+            )
+            return 2
+        from .memory import ResolvedIncident
+
+        memory.learn(ResolvedIncident(
+            incident_id=args.incident_id,
+            title=args.title,
+            culprit_service=args.culprit_service,
+            root_cause_summary=args.root_cause,
+            resolution=args.resolution,
+        ))
+        print(f"learned '{args.incident_id}'; memory now holds {len(memory)}.")
         return 0
-
-    required = (args.incident_id, args.title, args.culprit_service, args.root_cause, args.resolution)
-    if not all(required):
-        print(
-            "learn needs either --from-scenario, or all of --incident-id "
-            "--title --culprit-service --root-cause --resolution.",
-            file=sys.stderr,
-        )
-        return 2
-    from .memory import ResolvedIncident
-
-    memory.learn(ResolvedIncident(
-        incident_id=args.incident_id,
-        title=args.title,
-        culprit_service=args.culprit_service,
-        root_cause_summary=args.root_cause,
-        resolution=args.resolution,
-    ))
-    print(f"learned '{args.incident_id}'; memory now holds {len(memory)}.")
-    return 0
 
 
 def cmd_eval(args: argparse.Namespace) -> int:

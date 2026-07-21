@@ -28,6 +28,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import urllib.error
 import urllib.request
 from typing import Protocol
 
@@ -77,6 +78,28 @@ class VoyageEmbedder:
                 "Content-Type": "application/json",
             },
         )
-        with urllib.request.urlopen(request, timeout=30) as response:
-            payload = json.load(response)
-        return [item["embedding"] for item in payload["data"]]
+        payload = self._post_with_retry(request)
+        # Sort by the API's `index` rather than trusting array order — the
+        # eval comparison relies on embeddings lining up with their inputs,
+        # and a reordered response would silently mismatch symptom/cause vecs.
+        items = sorted(payload["data"], key=lambda item: item["index"])
+        return [item["embedding"] for item in items]
+
+    @staticmethod
+    def _post_with_retry(request, attempts: int = 3):
+        # A 300-call eval comparison shouldn't abort on one transient blip.
+        # Retry 429/5xx and connection errors with exponential backoff; 4xx
+        # (bad key, bad request) fails fast — retrying won't help.
+        import time
+
+        for attempt in range(attempts):
+            try:
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    return json.load(response)
+            except urllib.error.HTTPError as exc:
+                if exc.code not in (429, 500, 502, 503, 504) or attempt == attempts - 1:
+                    raise
+            except urllib.error.URLError:
+                if attempt == attempts - 1:
+                    raise
+            time.sleep(2 ** attempt)
