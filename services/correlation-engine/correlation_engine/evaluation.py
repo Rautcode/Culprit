@@ -55,7 +55,11 @@ def _single_rule_top(scenario: Scenario, rule, memory: IncidentMemory) -> str | 
     return leaders[0] if len(leaders) == 1 else None
 
 
-def evaluate() -> dict:
+def evaluate(warm_memory=None) -> dict:
+    """warm_memory(scenario) -> a leave-one-out memory of any backend;
+    defaults to the in-process lexical memory. The comparison in
+    compare_backends() passes a pgvector factory instead."""
+    warm_memory = warm_memory or _loo_memory
     total = len(ALL_SCENARIOS)
     cold_p1 = cold_p3 = warm_p1 = warm_p3 = 0
     rule_hits = {rule.name: 0 for rule in RULES}
@@ -68,7 +72,7 @@ def evaluate() -> dict:
         cold_p1 += cold_ranked[:1] == [truth]
         cold_p3 += truth in cold_ranked[:3]
 
-        memory = _loo_memory(scenario)
+        memory = warm_memory(scenario)
         warm = run_scenario(scenario, memory)
         warm_ranked = [c.deploy_id for c in warm.candidates]
         warm_p1 += warm_ranked[:1] == [truth]
@@ -126,4 +130,73 @@ def format_report(metrics: dict) -> str:
             f"No single rule matches the composite (best alone: {best_rule} at "
             f"{best_p1:.0%}) — the weighted combination is the product.",
         ]
+    return "\n".join(lines)
+
+
+def compare_backends(conn, embedder) -> dict:
+    """Golden-set warm precision for the lexical vs pgvector memory
+    backends — the data behind the adoption gate (embeddings.py).
+
+    SELF-ISOLATING: seeds under a dedicated eval org and ALWAYS rolls back,
+    whatever autocommit state the caller's connection is in. The operator's
+    recorded incidents (a different org, already committed) are never
+    touched — no caller can footgun this into deleting real data.
+
+    ponytail: reseeds the pgvector store per scenario (leave-one-out). Free
+    with HashingEmbedder; with VoyageEmbedder it makes ~1 embed call per
+    other-incident per scenario. Seed-once + query-time exclusion is the
+    upgrade if a large real golden set on a paid embedder makes it matter.
+    """
+    from .db.postgres import EVAL_ORG, PgVectorIncidentMemory
+
+    prior_autocommit = conn.autocommit
+    conn.autocommit = False
+    try:
+        conn.execute(
+            "INSERT INTO organizations (id, name) VALUES (%s, 'eval') ON CONFLICT (id) DO NOTHING",
+            (EVAL_ORG,),
+        )
+
+        def pgvector_loo(scenario: Scenario):
+            conn.execute("DELETE FROM resolved_incidents WHERE org_id = %s", (EVAL_ORG,))
+            memory = PgVectorIncidentMemory(conn, embedder, org_id=EVAL_ORG)
+            for other in ALL_SCENARIOS:
+                if other.id != scenario.id:
+                    memory.learn_from_scenario(other)
+            return memory
+
+        return {"lexical": evaluate(_loo_memory), "pgvector": evaluate(pgvector_loo)}
+    finally:
+        conn.rollback()
+        conn.autocommit = prior_autocommit
+
+
+def format_comparison(comparison: dict) -> str:
+    lex, pg = comparison["lexical"], comparison["pgvector"]
+    lines = [
+        "## Memory backend comparison (embeddings.py adoption gate)",
+        "",
+        "Warm precision on the golden set — lexical (default) vs pgvector. "
+        "Run in an isolated transaction and rolled back; recorded incidents "
+        "are untouched.",
+        "",
+        "| backend | warm p@1 | warm p@3 |",
+        "|---|---|---|",
+        f"| lexical (default) | {lex['warm']['p1']:.0%} | {lex['warm']['p3']:.0%} |",
+        f"| pgvector          | {pg['warm']['p1']:.0%} | {pg['warm']['p3']:.0%} |",
+        "",
+    ]
+    if pg["warm"]["p1"] > lex["warm"]["p1"]:
+        lines.append("pgvector beats lexical on this set — a candidate to adopt.")
+    elif pg["warm"]["p1"] == lex["warm"]["p1"]:
+        lines.append("pgvector matches lexical on this set — no reason to adopt the "
+                     "heavier backend yet.")
+    else:
+        lines.append("pgvector is WORSE on this set — do not adopt.")
+    lines += [
+        "",
+        "⚠ This is the SIMULATED golden set. The decision that matters is the "
+        "same comparison on YOUR recorded incidents — adoption is gated on real "
+        "data (embeddings.py), not on this number.",
+    ]
     return "\n".join(lines)

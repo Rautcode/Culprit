@@ -22,7 +22,10 @@ Two commands, two audiences:
   eval      Print the golden-set evaluation report (SPEC_VERSION.md
             v1.0 Evaluation Metrics): per-layer precision with the
             RAG-adds-no-noise gate, and per-rule precision feeding weight
-            tuning. CI publishes this into every run's summary.
+            tuning. CI publishes this into every run's summary. With
+            --memory-dsn, also compares the lexical vs pgvector memory
+            backends on the golden set (isolated + rolled back) — the data
+            behind the embeddings.py adoption gate.
 
   learn     Record a confirmed incident into persistent memory — the
             "Learn" step of the core loop, closing the feedback cycle so
@@ -249,8 +252,6 @@ def _open_memory(args):
     credential-free demo/diagnose path stays dependency-free."""
     if not getattr(args, "memory_dsn", None):
         return None
-    import os
-
     import psycopg
 
     from .db.postgres import PgVectorIncidentMemory, PostgresIncidentMemory, apply_schema
@@ -258,17 +259,21 @@ def _open_memory(args):
     conn = psycopg.connect(args.memory_dsn, autocommit=True)
     apply_schema(conn)
     if args.memory_backend == "pgvector":
-        from .embeddings import HashingEmbedder, VoyageEmbedder
-
-        if args.embedder == "voyage":
-            key = os.environ.get("VOYAGE_API_KEY")
-            if not key:
-                raise SystemExit("--embedder voyage requires the VOYAGE_API_KEY environment variable")
-            embedder = VoyageEmbedder(key)
-        else:
-            embedder = HashingEmbedder()
-        return PgVectorIncidentMemory(conn, embedder)
+        return PgVectorIncidentMemory(conn, _build_embedder(args.embedder))
     return PostgresIncidentMemory(conn)
+
+
+def _build_embedder(kind: str):
+    import os
+
+    from .embeddings import HashingEmbedder, VoyageEmbedder
+
+    if kind == "voyage":
+        key = os.environ.get("VOYAGE_API_KEY")
+        if not key:
+            raise SystemExit("--embedder voyage requires the VOYAGE_API_KEY environment variable")
+        return VoyageEmbedder(key)
+    return HashingEmbedder()
 
 
 def cmd_learn(args: argparse.Namespace) -> int:
@@ -314,8 +319,24 @@ def cmd_eval(args: argparse.Namespace) -> int:
 
     metrics = evaluate()
     print(format_report(metrics))
+
+    if getattr(args, "memory_dsn", None):
+        import psycopg
+
+        from .db.postgres import apply_schema
+        from .evaluation import compare_backends, format_comparison
+
+        conn = psycopg.connect(args.memory_dsn, autocommit=True)
+        apply_schema(conn)
+        try:
+            comparison = compare_backends(conn, _build_embedder(args.embedder))
+        finally:
+            conn.close()
+        print("\n" + format_comparison(comparison))
+
     # The SPEC gate, enforced at the exit code so CI fails loudly if the
-    # RAG layer ever starts subtracting signal.
+    # RAG layer ever starts subtracting signal. The backend comparison is
+    # informational — adoption is an operator decision on real data.
     return 0 if metrics["warm"]["p1"] >= metrics["rule_only_baseline_p1"] else 1
 
 
@@ -369,6 +390,11 @@ def main(argv: list[str] | None = None) -> int:
     learn.set_defaults(func=cmd_learn)
 
     evalp = sub.add_parser("eval", help="golden-set evaluation report (per-layer + per-rule precision)")
+    evalp.add_argument("--memory-dsn",
+                       help="also compare lexical vs pgvector memory on the golden set "
+                            "(isolated + rolled back; never touches recorded incidents)")
+    evalp.add_argument("--embedder", choices=("hash", "voyage"), default="hash",
+                       help="embedder for the pgvector side of the comparison")
     evalp.set_defaults(func=cmd_eval)
 
     args = parser.parse_args(argv)

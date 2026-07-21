@@ -107,14 +107,21 @@ novelty (see the note in `embeddings.py`).
 Credential: a [Voyage AI](https://www.voyageai.com/) API key (Anthropic has
 no embeddings endpoint; Voyage is the recommended partner).
 
-- [ ] **Run the golden set through both backends and compare** before
-  switching the default. Only adopt embeddings if precision improves:
+- [ ] **Compare both backends on the golden set** — one command, wired in;
+  it runs isolated and rolls back, so your recorded incidents are untouched:
   ```
-  export VOYAGE_API_KEY=...
+  culprit eval --memory-dsn "$CULPRIT_DSN"                 # hash embedder (offline)
+  export VOYAGE_API_KEY=... ; culprit eval --memory-dsn "$CULPRIT_DSN" --embedder voyage
+  ```
+  Verify: a "backend comparison" table with a verdict line. Only adopt
+  pgvector if it *beats* lexical — and the number that decides is the same
+  command run against YOUR recorded incidents, not the simulated set.
+
+- [ ] **Use it live** once adopted:
+  ```
   culprit diagnose --memory-dsn "$CULPRIT_DSN" \
     --memory-backend pgvector --embedder voyage  ...
   ```
-  Verify: it retrieves precedent (fails loudly if the key is missing).
 
 - [ ] **If adopted**: add an `ivfflat` index on the embedding columns (the
   named next trigger in `schema.sql`) once row counts justify it.

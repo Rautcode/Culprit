@@ -34,6 +34,10 @@ from ..memory import PRECEDENT_FLOOR, SIMILARITY_FLOOR, TOP_K, IncidentMemory, R
 from ..ranking.rules import TIME_WINDOW_SECONDS
 
 DEFAULT_ORG = "00000000-0000-0000-0000-000000000001"
+# Throwaway org for the eval-comparison (evaluation.compare_backends), which
+# seeds under it and always rolls back — kept distinct from DEFAULT_ORG so
+# the comparison never reads or writes the operator's real incidents.
+EVAL_ORG = "00000000-0000-0000-0000-0000000000e0"
 _SCHEMA = Path(__file__).with_name("schema.sql")
 
 

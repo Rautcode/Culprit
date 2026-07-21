@@ -241,3 +241,41 @@ def test_cli_learn_manual_record(conn, capsys):
 def test_cli_learn_without_dsn_fails_cleanly(capsys):
     from correlation_engine.cli import main
     assert main(["learn", "--from-scenario", "pool_exhaustion"]) == 2
+
+
+def test_eval_backend_comparison_and_isolation(conn):
+    """compare_backends reports both backends AND leaves the operator's
+    recorded incidents untouched — the footgun this design exists to
+    prevent (it deletes/seeds under EVAL_ORG and rolls back)."""
+    from correlation_engine.evaluation import compare_backends, format_comparison
+    from correlation_engine.embeddings import HashingEmbedder
+    from correlation_engine.db.postgres import PostgresIncidentMemory
+
+    # A real recorded incident under the default org, committed (autocommit fixture).
+    PostgresIncidentMemory(conn).learn_from_scenario(get("pool_exhaustion"))
+    assert len(PostgresIncidentMemory(conn)) == 1
+
+    comparison = compare_backends(conn, HashingEmbedder())
+    assert comparison["lexical"]["warm"]["p1"] == 1.0
+    assert comparison["pgvector"]["warm"]["p1"] == 1.0
+    assert "backend comparison" in format_comparison(comparison)
+
+    # Isolation proof: the comparison rolled back, so the operator's one real
+    # incident is intact and no EVAL_ORG rows leaked into the default org.
+    assert len(PostgresIncidentMemory(conn)) == 1
+    leaked = conn.execute(
+        "SELECT count(*) FROM resolved_incidents WHERE org_id <> %s",
+        ("00000000-0000-0000-0000-000000000001",),
+    ).fetchone()[0]
+    assert leaked == 0
+
+
+def test_eval_cli_with_dsn_runs_comparison(conn, capsys):
+    from correlation_engine.cli import main
+    # DSN comes from the module-level fixture env; reuse it via the conn's info.
+    dsn = DSN
+    assert main(["eval", "--memory-dsn", dsn]) == 0
+    out = capsys.readouterr().out
+    assert "Golden-set evaluation" in out          # the base report still prints
+    assert "backend comparison" in out             # plus the comparison
+    assert "pgvector" in out
