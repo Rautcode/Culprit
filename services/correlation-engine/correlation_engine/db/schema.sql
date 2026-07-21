@@ -11,10 +11,10 @@
 --     key from docs/06-api-design.md (webhook retries dedupe on it).
 --   * k8s_events — an evidence table docs/05 folded into timeline/S3 blobs;
 --     a plain table is the correct size at this scale.
---   * resolved_incidents — the incident-memory store (memory.py). The
---     pgvector extension is enabled, but the embedding column lands only
---     when a real embedding model replaces lexical scoring (memory.py's
---     named trigger) — no fake vector(1536) before then.
+--   * resolved_incidents — the incident-memory store (memory.py), with
+--     embedding columns for PgVectorIncidentMemory (embeddings.py). The
+--     columns are untyped `vector` so the dimension follows the configured
+--     embedder; one embedder per store — re-embed everything on a switch.
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
@@ -101,3 +101,11 @@ CREATE TABLE IF NOT EXISTS resolved_incidents (
     resolved_at         timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (org_id, incident_id)
 );
+
+-- Embedding columns (untyped `vector` so the dimension follows the
+-- configured embedder; exact scan for now — an ivfflat ANN index requires
+-- a fixed dimension and becomes worthwhile past ~100k rows, both of which
+-- arrive together with a committed production embedder).
+ALTER TABLE resolved_incidents ADD COLUMN IF NOT EXISTS title_embedding vector;
+ALTER TABLE resolved_incidents ADD COLUMN IF NOT EXISTS cause_embedding vector;
+ALTER TABLE resolved_incidents ADD COLUMN IF NOT EXISTS text_embedding  vector;

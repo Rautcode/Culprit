@@ -117,3 +117,60 @@ def test_incident_memory_relearn_updates_not_duplicates(conn):
     memory.learn_from_scenario(get("pool_exhaustion"))
     memory.learn_from_scenario(get("pool_exhaustion"))
     assert len(PostgresIncidentMemory(conn)) == 1
+
+
+def test_pgvector_memory_two_sided_guardrail_and_survival(conn):
+    from correlation_engine.db.postgres import PgVectorIncidentMemory
+    from correlation_engine.embeddings import HashingEmbedder
+
+    embedder = HashingEmbedder()
+    writer = PgVectorIncidentMemory(conn, embedder)
+    writer.learn_from_scenario(get("pool_exhaustion"))
+    writer.learn(ResolvedIncident(
+        incident_id="boilerplate-twin",
+        # Shares alert boilerplate with the query below but a completely
+        # different confirmed cause — the false-precedent shape the
+        # two-sided product exists to reject.
+        title="checkout-service: DB connection pool exhausted",
+        culprit_service="frontend-service",
+        root_cause_summary="hero image carousel autoplay regression",
+        resolution="pr_revert:frontend-service:zzz",
+    ))
+
+    # A fresh instance on the same database (restart survival), scored in SQL.
+    reader = PgVectorIncidentMemory(conn, embedder)
+    assert len(reader) == 2
+
+    matches = reader.match(
+        "DB connection pool exhausted",
+        "checkout-service reduce db.connectionPoolSize 50 -> 10",
+    )
+    assert matches, "true precedent must clear the floor"
+    assert matches[0][1].incident_id == "pool_exhaustion"
+    assert matches[0][1].resolution == "helm_rollback:checkout-service:47"
+    # The boilerplate twin matches on symptom but not on change — the SQL
+    # product must keep it below the floor, exactly like the lexical path.
+    assert all(m[1].incident_id != "boilerplate-twin" for m in matches)
+
+    assert reader.most_similar("connection pool exhausted checkout")[0][1].incident_id == "pool_exhaustion"
+
+
+def test_pgvector_and_lexical_memories_agree_on_the_precedent(conn):
+    """Behavior parity: both backends retrieve the same top precedent for
+    the same query — the embedder approximates the lexical signal by
+    construction, and this pins that they don't drift apart silently."""
+    from correlation_engine.db.postgres import PgVectorIncidentMemory
+    from correlation_engine.embeddings import HashingEmbedder
+    from correlation_engine.memory import IncidentMemory
+
+    lexical = IncidentMemory()
+    vector = PgVectorIncidentMemory(conn, HashingEmbedder())
+    for sid in ("pool_exhaustion", "broken_scraping", "missing_metrics"):
+        lexical.learn_from_scenario(get(sid))
+        vector.learn_from_scenario(get(sid))
+
+    symptom = "payments-service: metrics absent — scrape target down"
+    change = "prometheus consolidate scrape configs rewrite job relabeling"
+    lexical_top = lexical.match(symptom, change)[0][1].incident_id
+    vector_top = vector.match(symptom, change)[0][1].incident_id
+    assert lexical_top == vector_top

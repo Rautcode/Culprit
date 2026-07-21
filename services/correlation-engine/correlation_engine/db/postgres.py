@@ -4,9 +4,11 @@ PostgresEvidenceStore mirrors collection.store.EvidenceStore's contract
 (idempotent add_*, windowed bundle assembly); PostgresIncidentMemory
 extends memory.IncidentMemory with durability — incidents survive process
 restarts and are shared across processes, which is the actual point of
-persistence. Scoring stays the existing lexical code, deliberately: the
-pgvector column and ANN retrieval land together with a real embedding
-model (memory.py's named trigger), not before.
+persistence. Two memory backends coexist deliberately: the lexical
+PostgresIncidentMemory remains the default, and PgVectorIncidentMemory
+(scoring in SQL via pgvector, vectors from embeddings.py) is the opt-in
+upgrade — switching defaults is gated on the golden-set eval comparison
+memory.py's original trigger named, not on novelty.
 
 Transactions: these classes don't manage them — pass an autocommit
 connection or commit yourself. Single-tenant for now: every row carries
@@ -28,7 +30,7 @@ from pathlib import Path
 from typing import Iterable
 
 from ..harness.schema import AlertEvent, DeployEvent, EvidenceBundle, K8sEvent, ServiceEdge
-from ..memory import IncidentMemory, ResolvedIncident
+from ..memory import PRECEDENT_FLOOR, SIMILARITY_FLOOR, TOP_K, IncidentMemory, ResolvedIncident
 from ..ranking.rules import TIME_WINDOW_SECONDS
 
 DEFAULT_ORG = "00000000-0000-0000-0000-000000000001"
@@ -187,3 +189,98 @@ class PostgresIncidentMemory(IncidentMemory):
              incident.root_cause_summary, incident.resolution),
         )
         super().learn(incident)
+
+
+def _vec(values: list[float]) -> str:
+    """pgvector literal — avoids the pgvector-python dependency."""
+    return "[" + ",".join(f"{v:.8f}" for v in values) + "]"
+
+
+class PgVectorIncidentMemory:
+    """Incident memory scored by pgvector cosine, retrieval in SQL.
+
+    Duck-type compatible with IncidentMemory (learn / learn_from_scenario /
+    match / most_similar / __len__). The two-sided precedent guardrail is
+    preserved verbatim: score = symptom-similarity x change-similarity with
+    PRECEDENT_FLOOR — that product exists because the leave-one-out
+    regression caught title-boilerplate manufacturing false precedent, and
+    the embedding path must not reintroduce it.
+
+    One embedder per store: dimensions and spaces must match across rows.
+    Switching embedders means re-embedding every row (re-learn all
+    incidents) — enforced by convention, not schema, and named here.
+    """
+
+    def __init__(self, conn, embedder, org_id: str = DEFAULT_ORG) -> None:
+        self._conn = conn
+        self._embedder = embedder
+        self._org = org_id
+
+    def __len__(self) -> int:
+        return self._conn.execute(
+            "SELECT count(*) FROM resolved_incidents WHERE org_id = %s AND title_embedding IS NOT NULL",
+            (self._org,),
+        ).fetchone()[0]
+
+    def learn(self, incident: ResolvedIncident) -> None:
+        title_vec, cause_vec, text_vec = self._embedder.embed([
+            incident.title,
+            f"{incident.culprit_service} {incident.root_cause_summary}",
+            incident.text(),
+        ])
+        self._conn.execute(
+            """INSERT INTO resolved_incidents
+                   (org_id, incident_id, title, culprit_service, root_cause_summary, resolution,
+                    title_embedding, cause_embedding, text_embedding)
+               VALUES (%s, %s, %s, %s, %s, %s, %s::vector, %s::vector, %s::vector)
+               ON CONFLICT (org_id, incident_id) DO UPDATE SET
+                   title = EXCLUDED.title,
+                   culprit_service = EXCLUDED.culprit_service,
+                   root_cause_summary = EXCLUDED.root_cause_summary,
+                   resolution = EXCLUDED.resolution,
+                   title_embedding = EXCLUDED.title_embedding,
+                   cause_embedding = EXCLUDED.cause_embedding,
+                   text_embedding = EXCLUDED.text_embedding""",
+            (self._org, incident.incident_id, incident.title, incident.culprit_service,
+             incident.root_cause_summary, incident.resolution,
+             _vec(title_vec), _vec(cause_vec), _vec(text_vec)),
+        )
+
+    def learn_from_scenario(self, scenario) -> None:
+        self.learn(ResolvedIncident.from_scenario(scenario))
+
+    def _scored(self, sql: str, params: tuple, k: int, floor: float):
+        rows = self._conn.execute(sql, params).fetchall()
+        return [
+            (float(score), ResolvedIncident(*fields))
+            for *fields, score in rows[:k]
+            if score is not None and float(score) >= floor
+        ]
+
+    def match(self, symptom_text: str, change_text: str, k: int = TOP_K):
+        symptom_vec, change_vec = self._embedder.embed([symptom_text, change_text])
+        if not any(symptom_vec) or not any(change_vec):
+            return []
+        return self._scored(
+            """SELECT incident_id, title, culprit_service, root_cause_summary, resolution,
+                      (1 - (title_embedding <=> %s::vector)) * (1 - (cause_embedding <=> %s::vector)) AS score
+               FROM resolved_incidents
+               WHERE org_id = %s AND title_embedding IS NOT NULL
+               ORDER BY score DESC""",
+            (_vec(symptom_vec), _vec(change_vec), self._org),
+            k, PRECEDENT_FLOOR,
+        )
+
+    def most_similar(self, query: str, k: int = TOP_K):
+        (query_vec,) = self._embedder.embed([query])
+        if not any(query_vec):
+            return []
+        return self._scored(
+            """SELECT incident_id, title, culprit_service, root_cause_summary, resolution,
+                      1 - (text_embedding <=> %s::vector) AS score
+               FROM resolved_incidents
+               WHERE org_id = %s AND text_embedding IS NOT NULL
+               ORDER BY score DESC""",
+            (_vec(query_vec), self._org),
+            k, SIMILARITY_FLOOR,
+        )
