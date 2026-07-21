@@ -174,3 +174,70 @@ def test_pgvector_and_lexical_memories_agree_on_the_precedent(conn):
     lexical_top = lexical.match(symptom, change)[0][1].incident_id
     vector_top = vector.match(symptom, change)[0][1].incident_id
     assert lexical_top == vector_top
+
+
+@pytest.mark.parametrize("backend", ["lexical", "pgvector"])
+def test_cli_learn_then_diagnose_cites_precedent(conn, tmp_path, capsys, backend):
+    """The full loop through the CLI: learn a confirmed incident, then a
+    diagnose run on partner-shaped files cites it as precedent — for both
+    memory backends, proving the pgvector path is wired end to end."""
+    from correlation_engine.cli import main
+    import json as jsonlib
+
+    assert main([
+        "learn", "--memory-dsn", DSN, "--memory-backend", backend,
+        "--from-scenario", "pool_exhaustion",
+    ]) == 0
+    assert "memory now holds 1" in capsys.readouterr().out
+
+    (tmp_path / "deploys.json").write_text(jsonlib.dumps([
+        {"service": "checkout-service", "occurred_at": "2026-07-22T09:00:00Z",
+         "summary": "bump logging library version", "sha": "aaa111"},
+        {"service": "checkout-service", "occurred_at": "2026-07-22T09:31:00Z",
+         "summary": "reduce db.connectionPoolSize 50 -> 8", "sha": "ccc333"},
+    ]), encoding="utf-8")
+
+    assert main([
+        "diagnose",
+        "--alert-title", "DB connection pool exhausted",
+        "--alert-service", "checkout-service",
+        "--fired-at", "2026-07-22T09:32:30Z",
+        "--deploys-file", str(tmp_path / "deploys.json"),
+        "--memory-dsn", DSN, "--memory-backend", backend,
+    ]) == 0
+
+    out = capsys.readouterr().out
+    first_candidate = out.split("#1")[1].split("#2")[0]
+    assert "ccc333" in first_candidate
+    assert "precedent: pool_exhaustion" in first_candidate
+    assert "helm_rollback:checkout-service:47" in first_candidate  # the past resolution, surfaced
+    assert f"Incident memory: {backend} backend, 1 resolved incident(s)" in out
+    assert "running without incident memory" not in out
+
+
+def test_cli_learn_manual_record(conn, capsys):
+    from correlation_engine.cli import main
+
+    assert main([
+        "learn", "--memory-dsn", DSN, "--memory-backend", "pgvector",
+        "--incident-id", "real-001",
+        "--title", "orders-service: p99 latency high on order history",
+        "--culprit-service", "orders-service",
+        "--root-cause", "dropped covering index on orders table",
+        "--resolution", "pr_revert:orders-service:fa57db",
+    ]) == 0
+    assert "learned 'real-001'" in capsys.readouterr().out
+
+    from correlation_engine.db.postgres import PgVectorIncidentMemory
+    from correlation_engine.embeddings import HashingEmbedder
+    reader = PgVectorIncidentMemory(conn, HashingEmbedder())
+    matches = reader.match(
+        "orders-service: p99 latency high on order history",
+        "orders-service dropped covering index on orders table",
+    )
+    assert matches and matches[0][1].incident_id == "real-001"
+
+
+def test_cli_learn_without_dsn_fails_cleanly(capsys):
+    from correlation_engine.cli import main
+    assert main(["learn", "--from-scenario", "pool_exhaustion"]) == 2

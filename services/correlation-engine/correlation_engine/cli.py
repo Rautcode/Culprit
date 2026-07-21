@@ -12,7 +12,15 @@ Two commands, two audiences:
             deploys JSON. File-based by design — the lowest-trust ask for
             a skeptical SRE: no agent install, no credentials handed over,
             works offline. Live collection (kubeconfig/GitHub API) is the
-            Phase 1 Collector's job, not this CLI's.
+            Phase 1 Collector's job, not this CLI's. With --memory-dsn,
+            verdicts include precedent from persistent incident memory
+            (lexical by default; --memory-backend pgvector for SQL cosine
+            retrieval via embeddings.py).
+
+  learn     Record a confirmed incident into persistent memory — the
+            "Learn" step of the core loop, closing the feedback cycle so
+            future diagnose runs cite it as precedent. Seed a demo store
+            with --from-scenario all.
 
 Run as `python -m correlation_engine.cli ...` from services/correlation-engine,
 or `culprit ...` after `pip install -e services/correlation-engine`.
@@ -154,16 +162,95 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
         deploys=tuple(deploys), alerts=(alert,), k8s_events=k8s_events, service_edges=edges,
     )
     graph = KnowledgeGraph.from_edges(bundle.service_edges)
+    memory = _open_memory(args)
     result = RCAResult(
-        candidates=rank_candidates(bundle, graph),
+        candidates=rank_candidates(bundle, graph, memory),
         timeline=build_timeline(bundle),
     )
 
     print(f"ALERT [{alert.severity}] {alert.title}  (service: {alert.service})")
     _print_result(result, {d.id: d for d in deploys})
-    print("\nNote: no incident memory yet — precedent scoring activates as resolved")
-    print("incidents accumulate. Confidence is rule-evidence only, by design.")
+    if memory is None:
+        print("\nNote: running without incident memory — precedent scoring is off.")
+        print("Pass --memory-dsn (and record confirmed incidents with `culprit learn`)")
+        print("to activate it. Confidence is rule-evidence only, by design.")
+    else:
+        print(f"\nIncident memory: {args.memory_backend} backend, {len(memory)} resolved incident(s).")
     return 0
+
+
+def _open_memory(args):
+    """Persistent memory, or None. psycopg loads lazily so the
+    credential-free demo/diagnose path stays dependency-free."""
+    if not getattr(args, "memory_dsn", None):
+        return None
+    import os
+
+    import psycopg
+
+    from .db.postgres import PgVectorIncidentMemory, PostgresIncidentMemory, apply_schema
+
+    conn = psycopg.connect(args.memory_dsn, autocommit=True)
+    apply_schema(conn)
+    if args.memory_backend == "pgvector":
+        from .embeddings import HashingEmbedder, VoyageEmbedder
+
+        if args.embedder == "voyage":
+            key = os.environ.get("VOYAGE_API_KEY")
+            if not key:
+                raise SystemExit("--embedder voyage requires the VOYAGE_API_KEY environment variable")
+            embedder = VoyageEmbedder(key)
+        else:
+            embedder = HashingEmbedder()
+        return PgVectorIncidentMemory(conn, embedder)
+    return PostgresIncidentMemory(conn)
+
+
+def cmd_learn(args: argparse.Namespace) -> int:
+    memory = _open_memory(args)
+    if memory is None:
+        print("learn requires --memory-dsn (there is nowhere else to persist).", file=sys.stderr)
+        return 2
+
+    if args.from_scenario:
+        ids = (
+            [s.id for s in ALL_SCENARIOS]
+            if args.from_scenario == "all"
+            else [args.from_scenario]
+        )
+        for sid in ids:
+            memory.learn_from_scenario(get(sid))
+        print(f"learned {len(ids)} incident(s); memory now holds {len(memory)}.")
+        return 0
+
+    required = (args.incident_id, args.title, args.culprit_service, args.root_cause, args.resolution)
+    if not all(required):
+        print(
+            "learn needs either --from-scenario, or all of --incident-id "
+            "--title --culprit-service --root-cause --resolution.",
+            file=sys.stderr,
+        )
+        return 2
+    from .memory import ResolvedIncident
+
+    memory.learn(ResolvedIncident(
+        incident_id=args.incident_id,
+        title=args.title,
+        culprit_service=args.culprit_service,
+        root_cause_summary=args.root_cause,
+        resolution=args.resolution,
+    ))
+    print(f"learned '{args.incident_id}'; memory now holds {len(memory)}.")
+    return 0
+
+
+def _add_memory_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--memory-dsn",
+                        help="Postgres DSN for persistent incident memory (schema applied automatically)")
+    parser.add_argument("--memory-backend", choices=("lexical", "pgvector"), default="lexical",
+                        help="lexical (default — see memory.py's eval-gating note) or pgvector (SQL cosine retrieval)")
+    parser.add_argument("--embedder", choices=("hash", "voyage"), default="hash",
+                        help="pgvector backend only: hash (deterministic, offline) or voyage (semantic; needs VOYAGE_API_KEY)")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -185,7 +272,22 @@ def main(argv: list[str] | None = None) -> int:
                       help="output of `kubectl get events -o json` (or a bare list of Event objects)")
     diag.add_argument("--edges-file",
                       help="JSON list: {from, to, type?} service-dependency edges")
+    _add_memory_args(diag)
     diag.set_defaults(func=cmd_diagnose)
+
+    learn = sub.add_parser(
+        "learn",
+        help="record a confirmed incident into persistent memory (feeds future precedent)",
+    )
+    _add_memory_args(learn)
+    learn.add_argument("--from-scenario",
+                       help="seed from a harness scenario id, or 'all' for the full catalog")
+    learn.add_argument("--incident-id")
+    learn.add_argument("--title", help="the alert title(s), verbatim")
+    learn.add_argument("--culprit-service")
+    learn.add_argument("--root-cause", help="the confirmed root-cause summary")
+    learn.add_argument("--resolution", help="what fixed it, e.g. pr_revert:svc:sha")
+    learn.set_defaults(func=cmd_learn)
 
     args = parser.parse_args(argv)
     return args.func(args)
