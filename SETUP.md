@@ -145,6 +145,13 @@ defaults to `claude-opus-4-8`).
   invents is stripped and flagged, and confidence stays within ±15% of the
   deterministic value (the guardrail, visible in the output).
 
+- [ ] **Rehearse it before showing a partner.** This exact command is
+  **Beat 2.5** of the demo script
+  ([docs/validation/04-demo-script.md](docs/validation/04-demo-script.md)) —
+  its Setup block preps a fixture and the talk track sells the guardrail
+  (the bounded adjustment + stripped citations). If the guardrail line
+  doesn't appear when you rehearse, that beat is skipped, not improvised.
+
 ---
 
 ## Tier 4 — Cloud deployment (AWS EKS) 🔑
@@ -209,6 +216,9 @@ can do it. Kit is in [docs/validation/](docs/validation/).
   Problem only, no product, no repo link.
 - [ ] **Book 8-10 interviews** — [the guide](docs/validation/01-interview-guide.md).
 - [ ] **Demo the CLI** to the strongest 3-5 — [the script](docs/validation/04-demo-script.md).
+  Beats 1-3 need no credentials; the optional **Beat 2.5** (LLM narration,
+  guardrail on show) needs Tier 3's key rehearsed the morning of — skip it
+  otherwise.
 - [ ] **Log everything same-day** in [the tracker](docs/validation/03-candidate-tracker.md),
   and run the **kill-signal check**: if pain isn't described unprompted, or
   a named tool already solves it, that finding is a successful Phase 0 too.
