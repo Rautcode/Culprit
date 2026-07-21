@@ -18,6 +18,24 @@ Pick 2 scenarios matching their stack from the interview:
 - Platform team: `broken_scraping` (monitoring-topology culprit + precedent)
 - Default pair: `deadlock` + `broken_scraping`
 
+Optional (Beat 2.5 only) — if you'll show the LLM narration, prep it the
+morning of and confirm the guardrail line actually appears:
+
+```
+pip install -e . -e ../ai-reasoning     # both packages, so --explain can import the LLM layer
+export ANTHROPIC_API_KEY=...
+cat > /tmp/demo-deploys.json <<'JSON'
+[{"service":"checkout-service","occurred_at":"2026-07-22T09:00:00Z","summary":"bump logging library","sha":"aaa111"},
+ {"service":"checkout-service","occurred_at":"2026-07-22T09:31:00Z","summary":"reduce db.connectionPoolSize 50 -> 10","sha":"bbb222"}]
+JSON
+python -m correlation_engine.cli diagnose --explain \
+  --alert-title "DB connection pool exhausted" --alert-service checkout-service \
+  --fired-at 2026-07-22T09:32:30Z --deploys-file /tmp/demo-deploys.json
+```
+
+If the key isn't working that morning, **skip Beat 2.5** and lean on the
+Beat 1 talk track — never run it live unrehearsed.
+
 ## Beat 1 — the verdict (90 s)
 
 ```
@@ -42,6 +60,25 @@ Point at the `precedent:` line: "It's citing a *different* past incident
 with the same failure shape, and the resolution that fixed it. The system
 gets faster the more incidents it has seen — that's the retention story."
 
+## Beat 2.5 — the AI, on a leash (60 s, optional; needs the key from Setup)
+
+Run the prepared `diagnose --explain` command. Point at the **AI
+EXPLANATION** block, then at the two lines under it:
+
+Talk track: "Every AIOps tool now bolts an LLM on and calls it a day. The
+question you actually have at 2am is 'can I trust it enough to act.' So
+watch what this one is *not* allowed to do. The narration is on top of the
+same deterministic evidence you already saw — and its confidence adjustment
+is capped: see `LLM adjustment ±N%, bounded to ±15%`. It can nuance the
+number, it can't manufacture certainty. And every fact it cites is checked
+against the real evidence objects — anything it invents shows up on the
+`guardrail stripped ungrounded citations` line and gets thrown out. The
+deterministic verdict is what's authoritative; the model explains it, it
+doesn't get to overrule it."
+
+Why this beat lands: it inverts the usual AI-tool pitch. You're selling the
+*constraints*, which is exactly what a skeptical SRE is listening for.
+
 ## Beat 3 — their data (90 s)
 
 Show `culprit diagnose --help`. Talk track: "This is the ask. After your
@@ -61,6 +98,10 @@ saw in the terminal → expand "Why N%?". Same data, same breakdown.
 - Do not claim live cluster collection, EKS deployment, or auto-remediation
   exist — propose-only, file-based, and the README's proven-vs-designed
   section is the source of truth.
-- Do not demo a scenario you haven't run that morning.
+- Do not demo a scenario you haven't run that morning — including Beat 2.5:
+  if `--explain` didn't produce the guardrail line in Setup, skip it.
+- Do not oversell Beat 2.5 — it's optional. The deterministic verdict is
+  the product; the LLM narration is a trust aid, not the pitch. Never imply
+  the model decides the answer.
 - Do not argue with "tool X does this" — write it down (tracker), ask what
   X gets wrong, move on.
