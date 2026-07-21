@@ -13,6 +13,7 @@ conclusion it can't cite.
 - **[SPEC_VERSION.md](SPEC_VERSION.md)** — the frozen v1.0 spec and build sequence. Read this first.
 - **[docs/00-INDEX.md](docs/00-INDEX.md)** — full design doc set (problem validation → architecture → AI pipeline → infra → roadmap).
 - **[SETUP.md](SETUP.md)** — go-live checklist: what runs today, and the credential-gated tiers to activate the rest.
+- **[CASE-STUDY.md](CASE-STUDY.md)** — the portfolio writeup: the problem, the three decisions that make it senior work, and what's proven vs. designed.
 
 ## Status
 
