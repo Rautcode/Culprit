@@ -12,19 +12,6 @@ Suggested labels to create first (Issues → Labels):
 
 ---
 
-## Add a `.gitattributes` to normalize line endings
-**Labels:** `good first issue` `enhancement`
-
-Every commit on Windows warns "LF will be replaced by CRLF." A
-`.gitattributes` at the repo root fixes it repo-wide.
-
-- **Do:** add `.gitattributes` with `* text=auto eol=lf` (and `*.png binary`,
-  `*.ico binary` for assets); run `git add --renormalize .`.
-- **Acceptance:** fresh clones and commits no longer emit CRLF warnings;
-  no file content changes beyond line endings.
-
----
-
 ## Add a harness scenario: TLS certificate expiry
 **Labels:** `good first issue` `scenario` `help wanted`
 
