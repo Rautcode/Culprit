@@ -2,11 +2,60 @@
 
 > The AI SRE that finds what broke prod, before your engineers do.
 
-Deployment-aware, causal root-cause analysis for Kubernetes/GitOps stacks.
-A deterministic Rule Engine + Knowledge Graph correlate alerts against
-recent deploys; a Vector DB (RAG) surfaces historical precedent; an LLM
-reasons and explains on top of that evidence — never inventing a
-conclusion it can't cite.
+[![CI](https://github.com/Rautcode/Culprit/actions/workflows/ci.yml/badge.svg)](https://github.com/Rautcode/Culprit/actions/workflows/ci.yml)
+![Python 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)
+![tests 62 passing](https://img.shields.io/badge/tests-62%20passing-brightgreen)
+![precision@1 100%](https://img.shields.io/badge/golden--set%20precision%401-100%25-brightgreen)
+![License MIT](https://img.shields.io/badge/license-MIT-blue)
+
+**What:** when a production alert fires, Culprit answers "which recent
+change caused this?" — correlating deploys, config, Terraform, and
+Kubernetes events against the alert, then explaining its verdict with cited
+evidence and proposing a guardrailed fix.
+
+**Why:** during an incident, "what changed?" is the most expensive question
+and the one no tool answers — deploy history, config, IaC, metrics, and pod
+state live in five disconnected systems that an on-call engineer
+cross-references by hand while the outage runs. That phase, not the fix, is
+the longest segment of a typical incident timeline.
+
+**How it's different:** the correlation is **deterministic** (a Rule Engine
++ Knowledge Graph produce cited evidence and a defensible score); an LLM
+only *explains* on top, bounded so it provably cannot invent a conclusion.
+The system gives a correct, evidence-backed answer even with the LLM
+switched off entirely. → [the case study](CASE-STUDY.md) for the full story.
+
+## Architecture
+
+The built core loop — every step before the LLM is pure, deterministic,
+tested code:
+
+```mermaid
+flowchart LR
+    A[Alert] --> B[Gather evidence<br/>deploys·config·IaC·k8s]
+    B --> C[Knowledge Graph<br/>dependency+blast radius]
+    C --> D[Rule Engine<br/>5 weighted rules]
+    D --> E[RAG memory<br/>past incidents]
+    E --> F[Confidence<br/>rules·history·LLM ±15%]
+    F --> G[LLM explanation<br/>grounded, bounded]
+    G --> H[Verdict<br/>+ evidence + fix]
+```
+
+The designed multi-service topology (Phase 2+ — see
+[docs/03-architecture.md](docs/03-architecture.md)) collapses into one
+process for v1; these are the boundaries it splits along, not nine separate
+deployables today:
+
+```mermaid
+flowchart TD
+    COL[Collector agent<br/>outbound-only] --> ING[Ingestion API]
+    ING --> BUS[(Event bus)]
+    BUS --> CORR[Correlation Engine<br/>rules + graph]
+    BUS --> TL[Timeline Service]
+    CORR --> AIR[AI Reasoning<br/>RAG + LLM]
+    AIR --> REM[Remediation<br/>guardrailed, human-approved]
+    REM --> NOT[Notification]
+```
 
 ## Start here
 
@@ -127,7 +176,32 @@ Phase 2 service split:
 docker-compose up -d
 ```
 
+## Tech stack
+
+Honest about what's load-bearing vs. scaffolded — the same discipline as
+the Status table above.
+
+| Layer | Built with | State |
+|---|---|---|
+| Correlation engine, RAG, evaluation | **Python 3.13** (stdlib-only core; `psycopg` optional) | the real IP, fully tested |
+| AI reasoning / LLM layer | Python + Anthropic SDK (`claude-opus-4-8`) | wired, guardrailed; live calls key-gated |
+| Incident memory | **PostgreSQL + pgvector** | both lexical & vector backends, CI-tested on real PG |
+| Web UI | **Next.js 16 / TypeScript / Tailwind** | Incident List + Detail, prerendered |
+| Packaging & deploy | **Docker · Helm · Kubernetes** (kind-verified in CI) | container + chart deploy proven on a live cluster |
+| Cloud infra | **Terraform · AWS EKS/ECR** (OIDC keyless CI) | written + `terraform validate`-clean; `apply` pending creds |
+| CI/CD | **GitHub Actions** | golden-set eval gate, real-PG tests, kind deploy, TF validate |
+| Backend services | **Go** module (ingestion, timeline, remediation, …) | scaffold — boundaries defined, bodies are Phase 2 |
+
+Deliberately *not* yet present (designed in [docs/](docs/), not claimed as
+built): OpenTelemetry tracing, Prometheus/Grafana self-observability, a REST
+API server (the CLI is the current interface), and the multi-tenant SaaS
+shell. The repo says so everywhere rather than implying completeness.
+
 ## Repo layout
 
 See [docs/04-folder-structure.md](docs/04-folder-structure.md) for the full
 layout and the reasoning behind it.
+
+## License
+
+[MIT](LICENSE) © 2026 Manav Raut.
