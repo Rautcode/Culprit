@@ -99,3 +99,16 @@ def test_diagnose_missing_file_fails_cleanly():
         main(["diagnose", "--alert-title", "x", "--alert-service", "s",
               "--fired-at", "2026-07-22T09:00:00Z", "--deploys-file", "/no/such/file.json"])
     assert "file not found" in str(exc.value)
+
+
+def test_diagnose_malformed_events_file_fails_cleanly(tmp_path):
+    (tmp_path / "deploys.json").write_text(
+        json.dumps([{"service": "checkout-service", "occurred_at": "2026-07-22T09:31:00Z"}]),
+        encoding="utf-8")
+    (tmp_path / "events.json").write_text(json.dumps({"foo": "bar"}), encoding="utf-8")  # no items, wrong shape
+    with pytest.raises(SystemExit) as exc:
+        main(["diagnose", "--alert-title", "x", "--alert-service", "checkout-service",
+              "--fired-at", "2026-07-22T09:32:00Z",
+              "--deploys-file", str(tmp_path / "deploys.json"),
+              "--events-file", str(tmp_path / "events.json")])
+    assert "input error" in str(exc.value) and "Event objects" in str(exc.value)

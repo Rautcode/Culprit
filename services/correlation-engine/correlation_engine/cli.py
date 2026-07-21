@@ -172,8 +172,13 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
         items = raw.get("items", raw) if isinstance(raw, dict) else raw
         try:
             k8s_events = tuple(parse_k8s_event(item) for item in items)
-        except (KeyError, ValueError, TypeError) as exc:
-            raise SystemExit(f"input error: {args.events_file} — malformed Kubernetes event ({exc})")
+        except (KeyError, ValueError, TypeError, AttributeError) as exc:
+            # AttributeError covers the wrong-shape cases: an events file that
+            # is an object without `items`, or a list of non-objects, hands
+            # parse_k8s_event a string whose .get() blows up.
+            raise SystemExit(
+                f"input error: {args.events_file} — expected `kubectl get events -o json` "
+                f"output or a list of Event objects ({type(exc).__name__})")
 
     edges = ()
     if args.edges_file:
