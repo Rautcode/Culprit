@@ -22,12 +22,31 @@ jobs:
   pipeline-eval:
     name: pipeline tests + golden-set eval
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Same image as docker-compose — the Postgres backends
+        # (correlation_engine/db) are proven against a real database on
+        # every push; locally those tests skip when POSTGRES_DSN is unset.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: culprit
+          POSTGRES_PASSWORD: culprit
+          POSTGRES_DB: culprit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U culprit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_DSN: postgresql://culprit:culprit@localhost:5432/culprit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install pytest
+      - run: pip install pytest "psycopg[binary]>=3.1"
       - name: Regression suite + golden-set evaluation (precision@1 gate)
         run: python -m pytest services/correlation-engine/tests services/ai-reasoning/tests -v
       - name: UI data drift check

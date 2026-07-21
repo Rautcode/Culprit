@@ -1,5 +1,13 @@
 # Part 6: Database Design
 
+> **Implemented subset:** the live schema is
+> [`services/correlation-engine/correlation_engine/db/schema.sql`](../services/correlation-engine/correlation_engine/db/schema.sql),
+> with Postgres backends for evidence and incident memory in
+> [`db/postgres.py`](../services/correlation-engine/correlation_engine/db/postgres.py),
+> CI-tested against pgvector/pg16. Deviations from this design doc are
+> named in the schema file's header; RLS and per-org plumbing arrive with
+> multi-tenant signup (Phase 2).
+
 PostgreSQL. One database, `org_id` scoping + row-level security for
 multi-tenancy (see [03-architecture.md](03-architecture.md)). pgvector
 extension enabled for the incident-memory RAG (MVP; migrate to a dedicated
