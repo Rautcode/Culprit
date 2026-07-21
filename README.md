@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Rautcode/Culprit/actions/workflows/ci.yml/badge.svg)](https://github.com/Rautcode/Culprit/actions/workflows/ci.yml)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)
-![tests 69 passing](https://img.shields.io/badge/tests-69%20passing-brightgreen)
+![tests 55 passing](https://img.shields.io/badge/tests-55%20passing-brightgreen)
 ![precision@1 100%](https://img.shields.io/badge/golden--set%20precision%401-100%25-brightgreen)
 ![License MIT](https://img.shields.io/badge/license-MIT-blue)
 
