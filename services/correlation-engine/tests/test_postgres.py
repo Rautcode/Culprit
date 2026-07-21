@@ -279,3 +279,20 @@ def test_eval_cli_with_dsn_runs_comparison(conn, capsys):
     assert "Golden-set evaluation" in out          # the base report still prints
     assert "backend comparison" in out             # plus the comparison
     assert "pgvector" in out
+
+
+@pytest.mark.parametrize("backend", ["lexical", "pgvector"])
+def test_cli_learn_from_scenario_all_seeds_the_whole_catalog(conn, capsys, backend):
+    """`culprit learn --from-scenario all` — the demo-store seed command
+    from SETUP.md Tier 1 — persists exactly the full catalog, and a fresh
+    reader sees all of it (restart survival)."""
+    from correlation_engine.cli import main
+    from correlation_engine.harness.scenarios import ALL_SCENARIOS
+    from correlation_engine.db.postgres import PostgresIncidentMemory
+
+    n = len(ALL_SCENARIOS)
+    assert main(["learn", "--memory-dsn", DSN, "--memory-backend", backend,
+                 "--from-scenario", "all"]) == 0
+    assert f"memory now holds {n}" in capsys.readouterr().out
+    # A brand-new connection/reader sees the whole seeded store.
+    assert len(PostgresIncidentMemory(conn)) == n
