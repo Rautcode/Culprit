@@ -54,6 +54,20 @@ Design decisions that changed a frozen spec item go through an ADR — see
 
 ## Run it
 
+The 5-minute demo — a simulated incident through the real pipeline, verdict
+with cited evidence (Phase 0 validation artifact, see
+[docs/validation/](docs/validation/)):
+
+```
+cd services/correlation-engine
+python -m correlation_engine.cli demo list
+python -m correlation_engine.cli demo deadlock
+```
+
+`culprit diagnose` runs the same pipeline on your own exported evidence
+(`kubectl get events -o json` + a deploys JSON) — no agent, no credentials,
+offline. See `python -m correlation_engine.cli diagnose --help`.
+
 Pipeline tests + golden-set evaluation:
 
 ```
