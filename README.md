@@ -40,13 +40,19 @@ expectation set — confidence floors, rule hits, evidence citations, decoy
 ordering, timeline chronology, and the LLM guardrail contract. A rule or
 weight change that flips any ranking fails before merge.
 
-**What's proven vs. designed:** the deterministic pipeline, RAG memory,
-LLM explanation layer, and web UI all run and are tested. The LLM layer's
-production client (`AnthropicModel`) is contract-pinned by a scripted stub
-in CI but not exercised against a live API here. The EKS/Terraform/ArgoCD
-cloud deployment is designed and the same chart is kind-verified, but not
-yet applied to a real cluster. No design-partner usage or real-incident
-precision numbers exist yet — those are Phase 1 exit criteria, see
+**What's proven vs. designed:** the deterministic pipeline, RAG memory
+(lexical and pgvector backends, CI-tested against real Postgres), the LLM
+explanation layer, the `culprit` CLI (demo / diagnose / learn / eval, with
+persistent incident memory), and the web UI all run and are tested. The
+golden-set evaluation (`culprit eval`) publishes per-layer and per-rule
+precision into every CI run's summary — including an honest authored-bias
+flag when a single rule matches the composite on simulated data. Still
+credential-gated, not claimed: the production LLM client (AnthropicModel)
+and semantic embedder (VoyageEmbedder) are contract-pinned by
+deterministic stand-ins but not exercised against live APIs; the
+EKS/Terraform/ArgoCD cloud deployment is kind-verified but not applied to
+a real cluster. No design-partner usage or real-incident precision numbers
+exist yet — those are Phase 1 exit criteria, see
 [SPEC_VERSION.md](SPEC_VERSION.md).
 
 Design decisions that changed a frozen spec item go through an ADR — see

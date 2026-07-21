@@ -17,6 +17,11 @@ Two commands, two audiences:
             (lexical by default; --memory-backend pgvector for SQL cosine
             retrieval via embeddings.py).
 
+  eval      Print the golden-set evaluation report (SPEC_VERSION.md
+            v1.0 Evaluation Metrics): per-layer precision with the
+            RAG-adds-no-noise gate, and per-rule precision feeding weight
+            tuning. CI publishes this into every run's summary.
+
   learn     Record a confirmed incident into persistent memory — the
             "Learn" step of the core loop, closing the feedback cycle so
             future diagnose runs cite it as precedent. Seed a demo store
@@ -244,6 +249,16 @@ def cmd_learn(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval(args: argparse.Namespace) -> int:
+    from .evaluation import evaluate, format_report
+
+    metrics = evaluate()
+    print(format_report(metrics))
+    # The SPEC gate, enforced at the exit code so CI fails loudly if the
+    # RAG layer ever starts subtracting signal.
+    return 0 if metrics["warm"]["p1"] >= metrics["rule_only_baseline_p1"] else 1
+
+
 def _add_memory_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--memory-dsn",
                         help="Postgres DSN for persistent incident memory (schema applied automatically)")
@@ -288,6 +303,9 @@ def main(argv: list[str] | None = None) -> int:
     learn.add_argument("--root-cause", help="the confirmed root-cause summary")
     learn.add_argument("--resolution", help="what fixed it, e.g. pr_revert:svc:sha")
     learn.set_defaults(func=cmd_learn)
+
+    evalp = sub.add_parser("eval", help="golden-set evaluation report (per-layer + per-rule precision)")
+    evalp.set_defaults(func=cmd_eval)
 
     args = parser.parse_args(argv)
     return args.func(args)

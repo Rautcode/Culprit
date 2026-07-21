@@ -69,6 +69,12 @@ jobs:
         run: |
           python scripts/export_incidents.py
           git diff --exit-code apps/web/lib/incidents.json
+      - name: Golden-set metrics report
+        # The v1.0 Evaluation Metrics (per-layer + per-rule precision),
+        # rendered into the run summary; nonzero exit if the RAG layer
+        # ever subtracts signal (warm p@1 < rule-only baseline).
+        working-directory: services/correlation-engine
+        run: python -m correlation_engine.cli eval | tee -a "$GITHUB_STEP_SUMMARY"
 
   web-build:
     name: web build
