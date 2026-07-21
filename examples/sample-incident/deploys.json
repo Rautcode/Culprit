@@ -1,0 +1,20 @@
+[
+  {
+    "sha": "a1b2c3d",
+    "service": "checkout-service",
+    "occurred_at": "2026-07-22T14:12:00Z",
+    "summary": "update cart recommendation widget styling",
+    "deployed_by": "priya",
+    "source": "github",
+    "files_changed": ["web/cart/widget.css"]
+  },
+  {
+    "sha": "e4f5a6b",
+    "service": "payments-service",
+    "occurred_at": "2026-07-22T14:31:00Z",
+    "summary": "reduce outbound HTTP client timeout to 500ms in gateway config",
+    "deployed_by": "sam",
+    "source": "argocd",
+    "files_changed": ["config/httpclient.yaml"]
+  }
+]

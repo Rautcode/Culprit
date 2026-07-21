@@ -167,6 +167,8 @@ past incident and the fix that resolved it.
 offline. `--explain` adds an LLM narrative on top (needs ANTHROPIC_API_KEY
 + the ai-reasoning package; the verdict itself is unchanged). See
 `python -m correlation_engine.cli diagnose --help`.
+A runnable worked example (with the exact file shapes) is in
+[examples/sample-incident/](examples/sample-incident/).
 
 Golden-set evaluation — per-layer and per-rule precision (the same report
 CI publishes into every run's summary):

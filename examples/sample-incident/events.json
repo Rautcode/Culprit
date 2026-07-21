@@ -1,0 +1,28 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "involvedObject": {
+        "kind": "Pod",
+        "name": "payments-service-7d9f8b-x2k4p",
+        "namespace": "prod"
+      },
+      "reason": "Unhealthy",
+      "message": "gateway request timed out after 500ms (HTTP_CLIENT_TIMEOUT_MS=500)",
+      "firstTimestamp": "2026-07-22T14:33:10Z",
+      "lastTimestamp": "2026-07-22T14:34:50Z"
+    },
+    {
+      "involvedObject": {
+        "kind": "Pod",
+        "name": "checkout-service-6b3c9d-w8n2v",
+        "namespace": "prod"
+      },
+      "reason": "BackOff",
+      "message": "payment authorization failing: upstream timeout from payments-service",
+      "firstTimestamp": "2026-07-22T14:34:00Z",
+      "lastTimestamp": "2026-07-22T14:34:55Z"
+    }
+  ]
+}

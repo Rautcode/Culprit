@@ -1,0 +1,4 @@
+[
+  { "from": "web-frontend", "to": "checkout-service", "type": "depends_on" },
+  { "from": "checkout-service", "to": "payments-service", "type": "depends_on" }
+]
